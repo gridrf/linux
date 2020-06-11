@@ -765,6 +765,23 @@ static const struct snd_kcontrol_new ak4954_headphone_control =
 	SOC_DAPM_SINGLE("Switch", AK4954_07_MODE_CONTROL3, 5, 0, 0);
 	
 static const struct snd_soc_dapm_widget ak4954_dapm_widgets[] = {	
+	/* ADC */
+	SND_SOC_DAPM_ADC("ADC1", "NULL", AK4954_00_POWER_MANAGEMENT1, 0, 1),
+	SND_SOC_DAPM_ADC("ADC2", "NULL", AK4954_00_POWER_MANAGEMENT1, 1, 1),
+// Analog Input
+	SND_SOC_DAPM_INPUT("LIN1"),
+	SND_SOC_DAPM_INPUT("RIN1"),
+	SND_SOC_DAPM_INPUT("LIN2"),
+	SND_SOC_DAPM_INPUT("RIN2"),
+	SND_SOC_DAPM_INPUT("LIN3"),
+	SND_SOC_DAPM_INPUT("RIN3"),
+
+	SND_SOC_DAPM_MUX("LIN MUX", SND_SOC_NOPM, 0, 0,	&ak4954_lin_mux_control),
+	SND_SOC_DAPM_MUX("RIN MUX", SND_SOC_NOPM, 0, 0,	&ak4954_rin_mux_control),
+// MIC Bias
+	SND_SOC_DAPM_PGA("Mic Bias", AK4954_02_SIGNAL_SELECT1, 3, 1, NULL, 0),
+	SND_SOC_DAPM_MICBIAS("Mic Bias1", AK4954_02_SIGNAL_SELECT1, 4, 0),
+	SND_SOC_DAPM_MICBIAS("Mic Bias2", AK4954_02_SIGNAL_SELECT1, 4, 1),
 	/* Outputs */
 	SND_SOC_DAPM_OUTPUT("HPOUTL"),
 	SND_SOC_DAPM_OUTPUT("HPOUTR"),
@@ -789,6 +806,27 @@ static const struct snd_soc_dapm_widget ak4954_dapm_widgets[] = {
 
 
 static const struct snd_soc_dapm_route ak4954_intercon[] = {
+	/* Inputs */	
+	{"Capture", NULL, "ADC1"},
+	{"Capture", NULL, "ADC2"},
+
+	{"ADC1", NULL, "LIN MUX"},
+	{"ADC2", NULL, "RIN MUX"},
+
+	{"LIN MUX", "LIN1", "LIN1"},
+	{"LIN MUX", "LIN2", "LIN2"},
+	{"LIN MUX", "LIN3", "LIN3"},
+
+	{"RIN MUX", "RIN1", "RIN1"},
+	{"RIN MUX", "RIN2", "RIN2"},
+	{"RIN MUX", "RIN3", "RIN3"},
+
+	{"LIN1", NULL, "Mic Bias1"},
+	{"RIN1", NULL, "Mic Bias1"},
+	{"LIN2", NULL, "Mic Bias2"},
+	{"RIN2", NULL, "Mic Bias2"},
+	{"Mic Bias1", NULL, "Mic Bias"},
+	{"Mic Bias2", NULL, "Mic Bias"},
 	/* Outputs */
 	{"HPOUTL", NULL, "HPL Out"},
 	{"HPOUTR", NULL, "HPR Out"},
@@ -1201,7 +1239,7 @@ static int ak4954_probe(struct snd_soc_component *component)
 	snd_soc_component_update_bits(component,AK4954_03_SIGNAL_SELECT2,0x0f,0x05);// LIN2 RIN2
 	snd_soc_component_update_bits(component,AK4954_08_DIGITL_MIC,0x01,0x00);//AMIC
 	snd_soc_component_update_bits(component,AK4954_1D_DIGITAL_FILTER_MODE,0x02,0x02);//ADC output
-	snd_soc_component_update_bits(component,AK4954_1D_DIGITAL_FILTER_MODE,0x01,0x01);//ALC output
+	snd_soc_component_update_bits(component,AK4954_1D_DIGITAL_FILTER_MODE,0x01,0x0);//ALC output
 	snd_soc_component_update_bits(component,AK4954_02_SIGNAL_SELECT1,0x07,0x3);//Mic Gain
 	snd_soc_component_update_bits(component,AK4954_0D_LCH_INPUT_VOLUME_CONTROL,0xff,0xb0);//Lch gain
 	snd_soc_component_update_bits(component,AK4954_0E_RCH_INPUT_VOLUME_CONTROL,0xff,0xb0);//Lch gain
