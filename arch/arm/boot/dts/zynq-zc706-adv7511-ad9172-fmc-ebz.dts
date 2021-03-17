@@ -1,7 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Analog Devices AD917x-FMC-EBZ
+ * https://wiki.analog.com/resources/eval/dpg/ad917x-fmc-ebz
+ * https://wiki.analog.com/resources/eval/dpg/eval-ad9172
+ *
+ * hdl_project: <dac_fmc_ebz/zc706>
+ * board_revision: <>
+ *
+ * Copyright (C) 2018-2020 Analog Devices Inc.
+ */
 /dts-v1/;
 
 #include "zynq-zc706.dtsi"
 #include "zynq-zc706-adv7511.dtsi"
+#include <dt-bindings/jesd204/adxcvr.h>
 
 &fpga_axi {
 	tx_dma: tx-dmac@7c420000 {
@@ -61,8 +73,8 @@
 		clocks = <&hmc7044 12>;
 		clock-names = "conv";
 
-		adi,sys-clk-select = <3>;
-		adi,out-clk-select = <4>;
+		adi,sys-clk-select = <XCVR_QPLL>;
+		adi,out-clk-select = <XCVR_REFCLK_DIV2>;
 		adi,use-lpm-enable;
 
 		#clock-cells = <1>;

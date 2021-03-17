@@ -9,7 +9,7 @@
  */
 
 /*!
- * @addtogroup __AD9081_DAC_API__
+ * @addtogroup AD9081_DAC_API
  * @{
  */
 
@@ -59,12 +59,9 @@ int32_t adi_ad9081_dac_d2a_dual_spi_enable_set(adi_ad9081_device_t *device,
 	AD9081_NULL_POINTER_RETURN(device);
 	AD9081_LOG_FUNC();
 
-	err = adi_ad9081_hal_bf_set(
+	err = adi_ad9081_hal_2bf_set(
 		device, REG_SPI_ENABLE_DAC_ADDR, BF_SPI_EN_D2A0_INFO,
-		((duals & 0x1) > 0 ? 0x1 : 0x0) & enable); /* not paged */
-	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(
-		device, REG_SPI_ENABLE_DAC_ADDR, BF_SPI_EN_D2A1_INFO,
+		((duals & 0x1) > 0 ? 0x1 : 0x0) & enable, BF_SPI_EN_D2A1_INFO,
 		((duals & 0x2) > 0 ? 0x1 : 0x0) & enable); /* not paged */
 	AD9081_ERROR_RETURN(err);
 
@@ -313,6 +310,9 @@ int32_t adi_ad9081_dac_duc_nco_ftw0_set(adi_ad9081_device_t *device,
 {
 	int32_t err;
 	uint8_t i, dac, channel, bit_val;
+#if AD9081_USE_SPI_BURST_MODE > 0
+	uint8_t in_data[8];
+#endif
 	AD9081_NULL_POINTER_RETURN(device);
 	AD9081_LOG_FUNC();
 
@@ -321,10 +321,25 @@ int32_t adi_ad9081_dac_duc_nco_ftw0_set(adi_ad9081_device_t *device,
 		if (dac > 0) {
 			err = adi_ad9081_dac_select_set(device, dac);
 			AD9081_ERROR_RETURN(err);
+#if AD9081_USE_SPI_BURST_MODE > 0
+			in_data[0] = (REG_DDSM_FTW0_ADDR >> 8) & 0x3F;
+			in_data[1] = (REG_DDSM_FTW0_ADDR >> 0) & 0xFF;
+			in_data[2] = (uint8_t)((ftw >> 0) & 0xFF);
+			in_data[3] = (uint8_t)((ftw >> 8) & 0xFF);
+			in_data[4] = (uint8_t)((ftw >> 16) & 0xFF);
+			in_data[5] = (uint8_t)((ftw >> 24) & 0xFF);
+			in_data[6] = (uint8_t)((ftw >> 32) & 0xFF);
+			in_data[7] = (uint8_t)((ftw >> 40) & 0xFF);
+			if (API_CMS_ERROR_OK !=
+			    device->hal_info.spi_xfer(device->hal_info.user_data,
+						      in_data, NULL, 0x8))
+				return API_CMS_ERROR_SPI_XFER;
+#else
 			err = adi_ad9081_hal_bf_set(device, REG_DDSM_FTW0_ADDR,
 						    BF_DDSM_FTW_INFO,
 						    ftw); /* paged */
 			AD9081_ERROR_RETURN(err);
+#endif
 			err = adi_ad9081_hal_bf_set(device,
 						    REG_DDSM_FTW_UPDATE_ADDR,
 						    BF_DDSM_FTW_LOAD_REQ_INFO,
@@ -351,10 +366,25 @@ int32_t adi_ad9081_dac_duc_nco_ftw0_set(adi_ad9081_device_t *device,
 		if (channel > 0) {
 			err = adi_ad9081_dac_chan_select_set(device, channel);
 			AD9081_ERROR_RETURN(err);
+#if AD9081_USE_SPI_BURST_MODE > 0
+			in_data[0] = (REG_DDSC_FTW0_ADDR >> 8) & 0x3F;
+			in_data[1] = (REG_DDSC_FTW0_ADDR >> 0) & 0xFF;
+			in_data[2] = (uint8_t)((ftw >> 0) & 0xFF);
+			in_data[3] = (uint8_t)((ftw >> 8) & 0xFF);
+			in_data[4] = (uint8_t)((ftw >> 16) & 0xFF);
+			in_data[5] = (uint8_t)((ftw >> 24) & 0xFF);
+			in_data[6] = (uint8_t)((ftw >> 32) & 0xFF);
+			in_data[7] = (uint8_t)((ftw >> 40) & 0xFF);
+			if (API_CMS_ERROR_OK !=
+			    device->hal_info.spi_xfer(device->hal_info.user_data,
+						      in_data, NULL, 0x8))
+				return API_CMS_ERROR_SPI_XFER;
+#else
 			err = adi_ad9081_hal_bf_set(device, REG_DDSC_FTW0_ADDR,
 						    BF_DDSC_FTW_INFO,
 						    ftw); /* paged */
 			AD9081_ERROR_RETURN(err);
+#endif
 			err = adi_ad9081_hal_bf_set(device,
 						    REG_DDSC_FTW_UPDATE_ADDR,
 						    BF_DDSC_FTW_LOAD_REQ_INFO,
@@ -386,6 +416,9 @@ int32_t adi_ad9081_dac_duc_nco_ftw_set(adi_ad9081_device_t *device,
 {
 	int32_t err;
 	uint8_t i, dac, channel;
+#if AD9081_USE_SPI_BURST_MODE > 0
+	uint8_t in_data[8];
+#endif
 	AD9081_NULL_POINTER_RETURN(device);
 	AD9081_LOG_FUNC();
 
@@ -394,13 +427,10 @@ int32_t adi_ad9081_dac_duc_nco_ftw_set(adi_ad9081_device_t *device,
 		if (dac > 0) {
 			err = adi_ad9081_dac_select_set(device, dac);
 			AD9081_ERROR_RETURN(err);
-			err = adi_ad9081_hal_bf_set(
+			err = adi_ad9081_hal_2bf_set(
 				device, REG_DDSM_FTW_UPDATE_ADDR,
-				BF_DDSM_FTW_LOAD_SYSREF_INFO, 0); /* paged */
-			AD9081_ERROR_RETURN(err);
-			err = adi_ad9081_hal_bf_set(device,
-						    REG_DDSM_FTW_UPDATE_ADDR,
-						    0x00000304, 0); /* paged */
+				BF_DDSM_FTW_LOAD_SYSREF_INFO, 0, 0x00000304,
+				0); /* paged */
 			AD9081_ERROR_RETURN(err);
 			err = adi_ad9081_hal_bf_set(
 				device, REG_DDSM_DATAPATH_CFG_ADDR,
@@ -408,6 +438,48 @@ int32_t adi_ad9081_dac_duc_nco_ftw_set(adi_ad9081_device_t *device,
 				(acc_modulus > 0 ? 1 : 0)); /* paged */
 			AD9081_ERROR_RETURN(err);
 			if (acc_modulus > 0) {
+#if AD9081_USE_SPI_BURST_MODE > 0
+				in_data[0] = (REG_DDSM_ACC_MODULUS0_ADDR >> 8) &
+					     0x3F;
+				in_data[1] = (REG_DDSM_ACC_MODULUS0_ADDR >> 0) &
+					     0xFF;
+				in_data[2] =
+					(uint8_t)((acc_modulus >> 0) & 0xFF);
+				in_data[3] =
+					(uint8_t)((acc_modulus >> 8) & 0xFF);
+				in_data[4] =
+					(uint8_t)((acc_modulus >> 16) & 0xFF);
+				in_data[5] =
+					(uint8_t)((acc_modulus >> 24) & 0xFF);
+				in_data[6] =
+					(uint8_t)((acc_modulus >> 32) & 0xFF);
+				in_data[7] =
+					(uint8_t)((acc_modulus >> 40) & 0xFF);
+				if (API_CMS_ERROR_OK !=
+				    device->hal_info.spi_xfer(
+					    device->hal_info.user_data, in_data,
+					    NULL, 0x8))
+					return API_CMS_ERROR_SPI_XFER;
+				in_data[0] =
+					(BF_DDSM_ACC_DELTA_INFO >> 8) & 0x3F;
+				in_data[1] =
+					(BF_DDSM_ACC_DELTA_INFO >> 0) & 0xFF;
+				in_data[2] = (uint8_t)((acc_delta >> 0) & 0xFF);
+				in_data[3] = (uint8_t)((acc_delta >> 8) & 0xFF);
+				in_data[4] =
+					(uint8_t)((acc_delta >> 16) & 0xFF);
+				in_data[5] =
+					(uint8_t)((acc_delta >> 24) & 0xFF);
+				in_data[6] =
+					(uint8_t)((acc_delta >> 32) & 0xFF);
+				in_data[7] =
+					(uint8_t)((acc_delta >> 40) & 0xFF);
+				if (API_CMS_ERROR_OK !=
+				    device->hal_info.spi_xfer(
+					    device->hal_info.user_data, in_data,
+					    NULL, 0x8))
+					return API_CMS_ERROR_SPI_XFER;
+#else
 				err = adi_ad9081_hal_bf_set(
 					device, REG_DDSM_ACC_MODULUS0_ADDR,
 					BF_DDSM_ACC_MODULUS_INFO,
@@ -418,6 +490,7 @@ int32_t adi_ad9081_dac_duc_nco_ftw_set(adi_ad9081_device_t *device,
 					BF_DDSM_ACC_DELTA_INFO,
 					acc_delta); /* paged */
 				AD9081_ERROR_RETURN(err);
+#endif
 			}
 			err = adi_ad9081_dac_duc_nco_ftw0_set(
 				device, dacs, AD9081_DAC_CH_NONE, ftw);
@@ -430,13 +503,10 @@ int32_t adi_ad9081_dac_duc_nco_ftw_set(adi_ad9081_device_t *device,
 		if (channel > 0) {
 			err = adi_ad9081_dac_chan_select_set(device, channel);
 			AD9081_ERROR_RETURN(err);
-			err = adi_ad9081_hal_bf_set(
+			err = adi_ad9081_hal_2bf_set(
 				device, REG_DDSC_FTW_UPDATE_ADDR,
-				BF_DDSC_FTW_LOAD_SYSREF_INFO, 0); /* paged */
-			AD9081_ERROR_RETURN(err);
-			err = adi_ad9081_hal_bf_set(device,
-						    REG_DDSC_FTW_UPDATE_ADDR,
-						    0x00000304, 0); /* paged */
+				BF_DDSC_FTW_LOAD_SYSREF_INFO, 0, 0x00000304,
+				0); /* paged */
 			AD9081_ERROR_RETURN(err);
 			err = adi_ad9081_hal_bf_set(
 				device, REG_DDSC_DATAPATH_CFG_ADDR,
@@ -444,6 +514,48 @@ int32_t adi_ad9081_dac_duc_nco_ftw_set(adi_ad9081_device_t *device,
 				(acc_modulus > 0 ? 1 : 0)); /* paged */
 			AD9081_ERROR_RETURN(err);
 			if (acc_modulus > 0) {
+#if AD9081_USE_SPI_BURST_MODE > 0
+				in_data[0] = (REG_DDSC_ACC_MODULUS0_ADDR >> 8) &
+					     0x3F;
+				in_data[1] = (REG_DDSC_ACC_MODULUS0_ADDR >> 0) &
+					     0xFF;
+				in_data[2] =
+					(uint8_t)((acc_modulus >> 0) & 0xFF);
+				in_data[3] =
+					(uint8_t)((acc_modulus >> 8) & 0xFF);
+				in_data[4] =
+					(uint8_t)((acc_modulus >> 16) & 0xFF);
+				in_data[5] =
+					(uint8_t)((acc_modulus >> 24) & 0xFF);
+				in_data[6] =
+					(uint8_t)((acc_modulus >> 32) & 0xFF);
+				in_data[7] =
+					(uint8_t)((acc_modulus >> 40) & 0xFF);
+				if (API_CMS_ERROR_OK !=
+				    device->hal_info.spi_xfer(
+					    device->hal_info.user_data, in_data,
+					    NULL, 0x8))
+					return API_CMS_ERROR_SPI_XFER;
+				in_data[0] =
+					(REG_DDSC_ACC_DELTA0_ADDR >> 8) & 0x3F;
+				in_data[1] =
+					(REG_DDSC_ACC_DELTA0_ADDR >> 0) & 0xFF;
+				in_data[2] = (uint8_t)((acc_delta >> 0) & 0xFF);
+				in_data[3] = (uint8_t)((acc_delta >> 8) & 0xFF);
+				in_data[4] =
+					(uint8_t)((acc_delta >> 16) & 0xFF);
+				in_data[5] =
+					(uint8_t)((acc_delta >> 24) & 0xFF);
+				in_data[6] =
+					(uint8_t)((acc_delta >> 32) & 0xFF);
+				in_data[7] =
+					(uint8_t)((acc_delta >> 40) & 0xFF);
+				if (API_CMS_ERROR_OK !=
+				    device->hal_info.spi_xfer(
+					    device->hal_info.user_data, in_data,
+					    NULL, 0x8))
+					return API_CMS_ERROR_SPI_XFER;
+#else
 				err = adi_ad9081_hal_bf_set(
 					device, REG_DDSC_ACC_MODULUS0_ADDR,
 					BF_DDSC_ACC_MODULUS_INFO,
@@ -454,6 +566,7 @@ int32_t adi_ad9081_dac_duc_nco_ftw_set(adi_ad9081_device_t *device,
 					BF_DDSC_ACC_DELTA_INFO,
 					acc_delta); /* paged */
 				AD9081_ERROR_RETURN(err);
+#endif
 			}
 			err = adi_ad9081_dac_duc_nco_ftw0_set(
 				device, AD9081_DAC_NONE, channel, ftw);
@@ -491,10 +604,9 @@ int32_t adi_ad9081_dac_duc_nco_set(adi_ad9081_device_t *device, uint8_t dacs,
 	/* set channel nco */
 	if (channels != AD9081_DAC_CH_NONE) {
 		err = adi_ad9081_hal_bf_get(device, REG_INTRP_MODE_ADDR,
-					    BF_DP_INTERP_MODE_INFO,
+					    BF_FINE_INTERP_SEL_INFO,
 					    &main_interp, 1);
 		AD9081_ERROR_RETURN(err);
-
 		err = adi_ad9081_dac_duc_nco_enable_set(device, AD9081_DAC_NONE,
 							channels, 1);
 		AD9081_ERROR_RETURN(err);
@@ -509,6 +621,53 @@ int32_t adi_ad9081_dac_duc_nco_set(adi_ad9081_device_t *device, uint8_t dacs,
 
 	return API_CMS_ERROR_OK;
 }
+
+#if AD9081_USE_FLOATING_TYPE > 0
+int32_t adi_ad9081_dac_duc_nco_set_f(adi_ad9081_device_t *device, uint8_t dacs,
+				     uint8_t channels, double nco_shift_hz)
+{
+	int32_t err;
+	uint64_t ftw, a, b;
+	uint8_t main_interp = 0;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+	AD9081_INVALID_PARAM_RETURN(device->dev_info.dac_freq_hz == 0);
+
+	/* set main nco */
+	if (dacs != AD9081_DAC_NONE) {
+		err = adi_ad9081_dac_duc_nco_enable_set(device, dacs,
+							AD9081_DAC_CH_NONE, 1);
+		AD9081_ERROR_RETURN(err);
+		err = adi_ad9081_hal_calc_nco_ftw_f(
+			device, (double)device->dev_info.dac_freq_hz,
+			nco_shift_hz, &ftw, &a, &b);
+		AD9081_ERROR_RETURN(err);
+		err = adi_ad9081_dac_duc_nco_ftw_set(
+			device, dacs, AD9081_DAC_CH_NONE, ftw, a, b);
+		AD9081_ERROR_RETURN(err);
+	}
+
+	/* set channel nco */
+	if (channels != AD9081_DAC_CH_NONE) {
+		err = adi_ad9081_hal_bf_get(device, REG_INTRP_MODE_ADDR,
+					    BF_FINE_INTERP_SEL_INFO,
+					    &main_interp, 1);
+		AD9081_ERROR_RETURN(err);
+		err = adi_ad9081_dac_duc_nco_enable_set(device, AD9081_DAC_NONE,
+							channels, 1);
+		AD9081_ERROR_RETURN(err);
+		err = adi_ad9081_hal_calc_nco_ftw_f(
+			device, (double)device->dev_info.dac_freq_hz,
+			nco_shift_hz * main_interp, &ftw, &a, &b);
+		AD9081_ERROR_RETURN(err);
+		err = adi_ad9081_dac_duc_nco_ftw_set(device, AD9081_DAC_NONE,
+						     channels, ftw, a, b);
+		AD9081_ERROR_RETURN(err);
+	}
+
+	return API_CMS_ERROR_OK;
+}
+#endif
 
 int32_t adi_ad9081_dac_duc_main_nco_hopf_ftw_set(adi_ad9081_device_t *device,
 						 uint8_t dacs,
@@ -758,7 +917,7 @@ int32_t adi_ad9081_dac_digital_logic_enable_set(adi_ad9081_device_t *device,
 int32_t adi_ad9081_dac_dll_startup(adi_ad9081_device_t *device, uint8_t dacs)
 {
 	int32_t err;
-	uint8_t bf_val;
+	uint8_t bf_val0, bf_val1;
 	uint8_t clk_on_val = 2, clk_off_val = 1;
 	AD9081_NULL_POINTER_RETURN(device);
 	AD9081_LOG_FUNC();
@@ -771,108 +930,74 @@ int32_t adi_ad9081_dac_dll_startup(adi_ad9081_device_t *device, uint8_t dacs)
 				    BF_DLLCLK_ENCTRL_INFO,
 				    clk_on_val); /* paged */
 	AD9081_ERROR_RETURN(err);
+
 	err = adi_ad9081_dac_d2a_dual_spi_enable_set(device, 0x1,
 						     1); /* select dual0 */
 	AD9081_ERROR_RETURN(err);
-	bf_val = (dacs & AD9081_DAC_0) > 0 ? clk_on_val : clk_off_val;
-	err = adi_ad9081_hal_bf_set(device, REG_ENABLE_TIMING_CTRL_DAC0_ADDR,
-				    BF_MUSHICLKEN_CTRL_DAC0_INFO,
-				    bf_val); /* paged */
+	bf_val0 = (dacs & AD9081_DAC_0) > 0 ? clk_on_val : clk_off_val;
+	err = adi_ad9081_hal_3bf_set(device, REG_ENABLE_TIMING_CTRL_DAC0_ADDR,
+				     BF_MUSHICLKEN_CTRL_DAC0_INFO, bf_val0,
+				     BF_FORCEHIGH_CTRL_DAC0_INFO, bf_val0,
+				     BF_SWDCLKEN_CTRL_DAC0_INFO,
+				     bf_val0); /* paged */
 	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_ENABLE_TIMING_CTRL_DAC0_ADDR,
-				    BF_FORCEHIGH_CTRL_DAC0_INFO,
-				    bf_val); /* paged */
+	bf_val0 = (dacs & AD9081_DAC_1) > 0 ? clk_on_val : clk_off_val;
+	err = adi_ad9081_hal_3bf_set(device, REG_ENABLE_TIMING_CTRL_DAC1_ADDR,
+				     BF_MUSHICLKEN_CTRL_DAC1_INFO, bf_val0,
+				     BF_FORCEHIGH_CTRL_DAC1_INFO, bf_val0,
+				     BF_SWDCLKEN_CTRL_DAC1_INFO,
+				     bf_val0); /* paged */
 	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_ENABLE_TIMING_CTRL_DAC0_ADDR,
-				    BF_SWDCLKEN_CTRL_DAC0_INFO,
-				    bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
-	bf_val = (dacs & AD9081_DAC_1) > 0 ? clk_on_val : clk_off_val;
-	err = adi_ad9081_hal_bf_set(device, REG_ENABLE_TIMING_CTRL_DAC1_ADDR,
-				    BF_MUSHICLKEN_CTRL_DAC1_INFO,
-				    bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_ENABLE_TIMING_CTRL_DAC1_ADDR,
-				    BF_FORCEHIGH_CTRL_DAC1_INFO,
-				    bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_ENABLE_TIMING_CTRL_DAC1_ADDR,
-				    BF_SWDCLKEN_CTRL_DAC1_INFO,
-				    bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
+
 	err = adi_ad9081_dac_d2a_dual_spi_enable_set(device, 0x2,
 						     1); /* select dual1 */
 	AD9081_ERROR_RETURN(err);
-	bf_val = (dacs & AD9081_DAC_3) > 0 ? clk_on_val : clk_off_val;
-	err = adi_ad9081_hal_bf_set(device, REG_ENABLE_TIMING_CTRL_DAC0_ADDR,
-				    BF_MUSHICLKEN_CTRL_DAC0_INFO,
-				    bf_val); /* paged */
+	bf_val0 = (dacs & AD9081_DAC_3) > 0 ? clk_on_val : clk_off_val;
+	err = adi_ad9081_hal_3bf_set(device, REG_ENABLE_TIMING_CTRL_DAC0_ADDR,
+				     BF_MUSHICLKEN_CTRL_DAC0_INFO, bf_val0,
+				     BF_FORCEHIGH_CTRL_DAC0_INFO, bf_val0,
+				     BF_SWDCLKEN_CTRL_DAC0_INFO,
+				     bf_val0); /* paged */
 	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_ENABLE_TIMING_CTRL_DAC0_ADDR,
-				    BF_FORCEHIGH_CTRL_DAC0_INFO,
-				    bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_ENABLE_TIMING_CTRL_DAC0_ADDR,
-				    BF_SWDCLKEN_CTRL_DAC0_INFO,
-				    bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
-	bf_val = (dacs & AD9081_DAC_2) > 0 ? clk_on_val : clk_off_val;
-	err = adi_ad9081_hal_bf_set(device, REG_ENABLE_TIMING_CTRL_DAC1_ADDR,
-				    BF_MUSHICLKEN_CTRL_DAC1_INFO,
-				    bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_ENABLE_TIMING_CTRL_DAC1_ADDR,
-				    BF_FORCEHIGH_CTRL_DAC1_INFO,
-				    bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_ENABLE_TIMING_CTRL_DAC1_ADDR,
-				    BF_SWDCLKEN_CTRL_DAC1_INFO,
-				    bf_val); /* paged */
+	bf_val0 = (dacs & AD9081_DAC_2) > 0 ? clk_on_val : clk_off_val;
+	err = adi_ad9081_hal_3bf_set(device, REG_ENABLE_TIMING_CTRL_DAC1_ADDR,
+				     BF_MUSHICLKEN_CTRL_DAC1_INFO, bf_val0,
+				     BF_FORCEHIGH_CTRL_DAC1_INFO, bf_val0,
+				     BF_SWDCLKEN_CTRL_DAC1_INFO,
+				     bf_val0); /* paged */
 	AD9081_ERROR_RETURN(err);
 
 	/* setup mushi */
 	err = adi_ad9081_dac_d2a_dual_spi_enable_set(device, 0x1,
 						     1); /* select dual0 */
 	AD9081_ERROR_RETURN(err);
-	bf_val = (dacs & AD9081_DAC_0) > 0 ? 0 : 1;
-	err = adi_ad9081_hal_bf_set(device, REG_MUSHI_CTRL_ADDR,
-				    BF_MUSHI_PD0_DUM_INFO, bf_val); /* paged */
+	bf_val0 = (dacs & AD9081_DAC_0) > 0 ? 0 : 1;
+	bf_val1 = (dacs & AD9081_DAC_1) > 0 ? 0 : 1;
+	err = adi_ad9081_hal_4bf_set(device, REG_MUSHI_CTRL_ADDR,
+				     BF_MUSHI_PD0_DUM_INFO, bf_val0,
+				     BF_MUSHI_PD0_INFO, bf_val0,
+				     BF_MUSHI_PD1_DUM_INFO, bf_val1,
+				     BF_MUSHI_PD1_INFO, bf_val1); /* paged */
 	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_MUSHI_CTRL_ADDR,
-				    BF_MUSHI_PD0_INFO, bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
-	bf_val = (dacs & AD9081_DAC_1) > 0 ? 0 : 1;
-	err = adi_ad9081_hal_bf_set(device, REG_MUSHI_CTRL_ADDR,
-				    BF_MUSHI_PD1_DUM_INFO, bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_MUSHI_CTRL_ADDR,
-				    BF_MUSHI_PD1_INFO, bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
+
 	err = adi_ad9081_dac_d2a_dual_spi_enable_set(device, 0x2,
 						     1); /* select dual1 */
 	AD9081_ERROR_RETURN(err);
-	bf_val = (dacs & AD9081_DAC_3) > 0 ? 0 : 1;
-	err = adi_ad9081_hal_bf_set(device, REG_MUSHI_CTRL_ADDR,
-				    BF_MUSHI_PD0_DUM_INFO, bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_MUSHI_CTRL_ADDR,
-				    BF_MUSHI_PD0_INFO, bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
-	bf_val = (dacs & AD9081_DAC_2) > 0 ? 0 : 1;
-	err = adi_ad9081_hal_bf_set(device, REG_MUSHI_CTRL_ADDR,
-				    BF_MUSHI_PD1_DUM_INFO, bf_val); /* paged */
-	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_MUSHI_CTRL_ADDR,
-				    BF_MUSHI_PD1_INFO, bf_val); /* paged */
+	bf_val0 = (dacs & AD9081_DAC_3) > 0 ? 0 : 1;
+	bf_val1 = (dacs & AD9081_DAC_2) > 0 ? 0 : 1;
+	err = adi_ad9081_hal_4bf_set(device, REG_MUSHI_CTRL_ADDR,
+				     BF_MUSHI_PD0_DUM_INFO, bf_val0,
+				     BF_MUSHI_PD0_INFO, bf_val0,
+				     BF_MUSHI_PD1_DUM_INFO, bf_val1,
+				     BF_MUSHI_PD1_INFO, bf_val1); /* paged */
 	AD9081_ERROR_RETURN(err);
 
 	/* override dcc code */
 	err = adi_ad9081_dac_d2a_dual_spi_enable_set(
 		device, 0x3, 1); /* select dual0 & dual1 */
 	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, 0x00000192, 0x00000600, 0x00);
-	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, 0x00000192, 0x00000107, 0x01);
+	err = adi_ad9081_hal_2bf_set(device, 0x00000192, 0x00000600, 0x00,
+				     0x00000107, 0x01);
 	AD9081_ERROR_RETURN(err);
 
 	return API_CMS_ERROR_OK;
@@ -1145,7 +1270,7 @@ int32_t adi_ad9081_dac_xbar_set(adi_ad9081_device_t *device, uint8_t dacs,
 			err = adi_ad9081_dac_select_set(device, dac);
 			AD9081_ERROR_RETURN(err);
 			err = adi_ad9081_hal_bf_get(device, REG_INTRP_MODE_ADDR,
-						    BF_CH_INTERP_MODE_INFO,
+						    BF_COARSE_INTERP_SEL_INFO,
 						    &ch_interp,
 						    1); /* not paged */
 			AD9081_ERROR_RETURN(err);
@@ -1228,12 +1353,11 @@ int32_t adi_ad9081_dac_shuffle_enable_set(adi_ad9081_device_t *device,
 	duals |= ((dacs & AD9081_DAC_3) > 0 ? 0x2 : 0x0);
 	err = adi_ad9081_dac_d2a_dual_spi_enable_set(device, duals, 1);
 	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_DECODE_MODE_ADDR,
-				    BF_MSB_MODE_INFO, enable); /* paged */
+	err = adi_ad9081_hal_2bf_set(device, REG_DECODE_MODE_ADDR,
+				     BF_MSB_MODE_INFO, enable, BF_ISB_MODE_INFO,
+				     enable); /* paged */
 	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_bf_set(device, REG_DECODE_MODE_ADDR,
-				    BF_ISB_MODE_INFO, enable); /* paged */
-	AD9081_ERROR_RETURN(err);
+
 	err = adi_ad9081_dac_d2a_dual_spi_enable_set(device, 0x3, 1);
 	AD9081_ERROR_RETURN(err);
 
@@ -1244,7 +1368,7 @@ int32_t adi_ad9081_dac_data_xor_set(adi_ad9081_device_t *device, uint8_t dacs,
 				    uint8_t enable)
 {
 	int32_t err;
-	uint8_t xor_en, dexor_en;
+	uint8_t xor_en, dexor_en1, dexor_en2;
 	AD9081_NULL_POINTER_RETURN(device);
 	AD9081_LOG_FUNC();
 
@@ -1253,36 +1377,33 @@ int32_t adi_ad9081_dac_data_xor_set(adi_ad9081_device_t *device, uint8_t dacs,
 				    BF_DAC_DATA_XOR_EN_INFO,
 				    xor_en); /* not paged */
 	AD9081_ERROR_RETURN(err);
+
 	err = adi_ad9081_dac_d2a_dual_spi_enable_set(device, 0x1,
 						     1); /* select dual0 */
 	AD9081_ERROR_RETURN(err);
-	dexor_en = ((dacs & AD9081_DAC_0) > 0 ? 0x1 : 0x0) &
-		   (enable > 0 ? 0x1 : 0x0);
-	err = adi_ad9081_hal_bf_set(device, REG_HANDOFF_DEBUG_ADDR,
-				    BF_DATA_DEXOR_EN_DAC0_INFO,
-				    dexor_en); /* paged */
+	dexor_en1 = ((dacs & AD9081_DAC_0) > 0 ? 0x1 : 0x0) &
+		    (enable > 0 ? 0x1 : 0x0);
+	dexor_en2 = ((dacs & AD9081_DAC_1) > 0 ? 0x1 : 0x0) &
+		    (enable > 0 ? 0x1 : 0x0);
+	err = adi_ad9081_hal_2bf_set(device, REG_HANDOFF_DEBUG_ADDR,
+				     BF_DATA_DEXOR_EN_DAC0_INFO, dexor_en1,
+				     BF_DATA_DEXOR_EN_DAC1_INFO,
+				     dexor_en2); /* paged */
 	AD9081_ERROR_RETURN(err);
-	dexor_en = ((dacs & AD9081_DAC_1) > 0 ? 0x1 : 0x0) &
-		   (enable > 0 ? 0x1 : 0x0);
-	err = adi_ad9081_hal_bf_set(device, REG_HANDOFF_DEBUG_ADDR,
-				    BF_DATA_DEXOR_EN_DAC1_INFO,
-				    dexor_en); /* paged */
-	AD9081_ERROR_RETURN(err);
+
 	err = adi_ad9081_dac_d2a_dual_spi_enable_set(device, 0x2,
 						     1); /* select dual1 */
 	AD9081_ERROR_RETURN(err);
-	dexor_en = ((dacs & AD9081_DAC_3) > 0 ? 0x1 : 0x0) &
-		   (enable > 0 ? 0x1 : 0x0);
-	err = adi_ad9081_hal_bf_set(device, REG_HANDOFF_DEBUG_ADDR,
-				    BF_DATA_DEXOR_EN_DAC0_INFO,
-				    dexor_en); /* paged */
+	dexor_en1 = ((dacs & AD9081_DAC_3) > 0 ? 0x1 : 0x0) &
+		    (enable > 0 ? 0x1 : 0x0);
+	dexor_en2 = ((dacs & AD9081_DAC_2) > 0 ? 0x1 : 0x0) &
+		    (enable > 0 ? 0x1 : 0x0);
+	err = adi_ad9081_hal_2bf_set(device, REG_HANDOFF_DEBUG_ADDR,
+				     BF_DATA_DEXOR_EN_DAC0_INFO, dexor_en1,
+				     BF_DATA_DEXOR_EN_DAC1_INFO,
+				     dexor_en2); /* paged */
 	AD9081_ERROR_RETURN(err);
-	dexor_en = ((dacs & AD9081_DAC_2) > 0 ? 0x1 : 0x0) &
-		   (enable > 0 ? 0x1 : 0x0);
-	err = adi_ad9081_hal_bf_set(device, REG_HANDOFF_DEBUG_ADDR,
-				    BF_DATA_DEXOR_EN_DAC1_INFO,
-				    dexor_en); /* paged */
-	AD9081_ERROR_RETURN(err);
+
 	err = adi_ad9081_dac_d2a_dual_spi_enable_set(device, 0x3, 1);
 	AD9081_ERROR_RETURN(err);
 
@@ -1602,10 +1723,10 @@ int32_t adi_ad9081_dac_fsc_set(adi_ad9081_device_t *device, uint8_t dacs,
 	AD9081_LOG_FUNC();
 	if (uA > 40000)
 		AD9081_LOG_WARN(
-			"full-scale current beyond design recommendation (7.5mA - 40mA)");
-	if (uA < 7500)
+			"full-scale current beyond design recommendation (7mA - 40mA)");
+	if (uA < 7000)
 		AD9081_LOG_WARN(
-			"full-scale current beyond design recommendation (7.5mA - 40mA)");
+			"full-scale current beyond design recommendation (7mA - 40mA)");
 
 	for (i = 0; i < 4; i++) {
 		dac = dacs & (AD9081_DAC_0 << i);
@@ -1712,97 +1833,45 @@ int32_t
 adi_ad9081_dac_nco_sync_reset_via_sysref_set(adi_ad9081_device_t *device,
 					     uint8_t enable)
 {
-	int32_t err;
-	AD9081_NULL_POINTER_RETURN(device);
-	AD9081_LOG_FUNC();
-
-	err = adi_ad9081_hal_bf_set(device, 0x00000205, 0x00000102, enable);
-	AD9081_ERROR_RETURN(err);
-
-	return API_CMS_ERROR_OK;
+	return adi_ad9081_device_nco_sync_reset_via_sysref_set(device, enable);
 }
 
 int32_t adi_ad9081_dac_nco_sync_sysref_mode_set(adi_ad9081_device_t *device,
 						uint8_t mode)
 {
-	int32_t err;
-	AD9081_NULL_POINTER_RETURN(device);
-	AD9081_LOG_FUNC();
-
-	/* 0: immediately by sysref, 1: by next lmfc rising edge, 2: by next lmfc falling edge */
-	err = adi_ad9081_hal_bf_set(device, REG_NCOSYNC_SYSREF_MODE_ADDR,
-				    BF_NCO_SYNC_SYSREF_MODE_INFO, mode);
-	AD9081_ERROR_RETURN(err);
-
-	return API_CMS_ERROR_OK;
+	return adi_ad9081_device_nco_sync_sysref_mode_set(device, mode);
 }
 
 int32_t adi_ad9081_dac_nco_master_slave_mode_set(adi_ad9081_device_t *device,
 						 uint8_t mode)
 {
-	int32_t err;
-	AD9081_NULL_POINTER_RETURN(device);
-	AD9081_LOG_FUNC();
-
-	/* 0: disable, 1: master, 2: slave */
-	err = adi_ad9081_hal_bf_set(device, REG_NCOSYNC_MS_MODE_ADDR,
-				    BF_NCO_SYNC_MS_MODE_INFO, mode);
-	AD9081_ERROR_RETURN(err);
-
-	return API_CMS_ERROR_OK;
+	return adi_ad9081_device_nco_sync_mode_set(device, mode);
 }
 
 int32_t adi_ad9081_dac_nco_master_slave_gpio_set(adi_ad9081_device_t *device,
 						 uint8_t gpio_index,
 						 uint8_t output)
 {
-	int32_t err;
-	AD9081_NULL_POINTER_RETURN(device);
-	AD9081_LOG_FUNC();
-	AD9081_INVALID_PARAM_RETURN(gpio_index > 5);
-
-	if ((gpio_index & 1) == 0) {
-		err = adi_ad9081_hal_bf_set(
-			device, REG_GPIO_CFG0_ADDR + (gpio_index >> 1), 0x0400,
-			(output > 0) ? 10 : 11);
-		AD9081_ERROR_RETURN(err);
-	} else {
-		err = adi_ad9081_hal_bf_set(
-			device, REG_GPIO_CFG0_ADDR + (gpio_index >> 1), 0x0404,
-			(output > 0) ? 10 : 11);
-		AD9081_ERROR_RETURN(err);
-	}
-
-	return API_CMS_ERROR_OK;
+	return adi_ad9081_device_nco_sync_gpio_set(device, gpio_index, output);
 }
 
 int32_t
 adi_ad9081_dac_nco_master_slave_trigger_source_set(adi_ad9081_device_t *device,
 						   uint8_t source)
 {
-	int32_t err;
-	AD9081_NULL_POINTER_RETURN(device);
-	AD9081_LOG_FUNC();
+	return adi_ad9081_device_nco_sync_trigger_source_set(device, source);
+}
 
-	/* 0: sysref, 1: lmfc rising edge, 2: lmfc falling edge */
-	err = adi_ad9081_hal_bf_set(device, REG_NCOSYNC_MS_MODE_ADDR,
-				    BF_NCO_SYNC_MS_TRIG_SOURCE_INFO, source);
-	AD9081_ERROR_RETURN(err);
-
-	return API_CMS_ERROR_OK;
+int32_t
+adi_ad9081_dac_nco_master_slave_extra_lmfc_num_set(adi_ad9081_device_t *device,
+						   uint8_t num)
+{
+	return adi_ad9081_device_nco_sync_extra_lmfc_num_set(device, num);
 }
 
 int32_t adi_ad9081_dac_nco_master_slave_trigger_set(adi_ad9081_device_t *device)
 {
-	int32_t err;
-	AD9081_NULL_POINTER_RETURN(device);
-	AD9081_LOG_FUNC();
-
-	err = adi_ad9081_hal_bf_set(device, REG_NCO_SYNC_MS_TRIG_ADDR,
-				    BF_NCO_SYNC_MS_TRIG_INFO, 1);
-	AD9081_ERROR_RETURN(err);
-
-	return API_CMS_ERROR_OK;
+	return adi_ad9081_device_nco_sync_trigger_set(device);
 }
 
 int32_t adi_ad9081_dac_nco_sync_set(adi_ad9081_device_t *device,
@@ -1833,6 +1902,46 @@ int32_t adi_ad9081_dac_nco_sync_set(adi_ad9081_device_t *device,
 		err = adi_ad9081_dac_nco_sync_sysref_mode_set(device, 2);
 		AD9081_ERROR_RETURN(err);
 		err = adi_ad9081_dac_nco_sync_reset_via_sysref_set(device, 1);
+		AD9081_ERROR_RETURN(err);
+	}
+
+	return API_CMS_ERROR_OK;
+}
+
+int32_t adi_ad9081_dac_nco_master_slave_sync(adi_ad9081_device_t *device,
+					     uint8_t is_master,
+					     uint8_t trigger_src,
+					     uint8_t gpio_index,
+					     uint8_t extra_lmfc_num)
+{
+	int32_t err;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+
+	err = adi_ad9081_hal_bf_set(device, REG_MAIN_AUTO_CLK_GATING_ADDR,
+				    0x00000400, 7);
+	AD9081_ERROR_RETURN(err);
+
+	err = adi_ad9081_dac_nco_master_slave_mode_set(device,
+						       is_master > 0 ? 1 : 2);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_dac_nco_master_slave_trigger_source_set(device,
+								 trigger_src);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_dac_nco_master_slave_gpio_set(device, gpio_index,
+						       is_master > 0 ? 1 : 0);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_dac_nco_master_slave_extra_lmfc_num_set(
+		device, extra_lmfc_num);
+	AD9081_ERROR_RETURN(err);
+
+	err = adi_ad9081_dac_nco_sync_reset_via_sysref_set(device, 0);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_dac_nco_sync_reset_via_sysref_set(device, 1);
+	AD9081_ERROR_RETURN(err);
+
+	if (is_master > 0) {
+		err = adi_ad9081_dac_nco_master_slave_trigger_set(device);
 		AD9081_ERROR_RETURN(err);
 	}
 

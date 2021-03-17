@@ -1,22 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * pmbus.h - Common defines and structures for PMBus devices
  *
  * Copyright (c) 2010, 2011 Ericsson AB.
  * Copyright (c) 2012 Guenter Roeck
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #ifndef PMBUS_H
@@ -217,6 +204,20 @@ enum pmbus_regs {
 	PMBUS_VIRT_PWM_ENABLE_2,
 	PMBUS_VIRT_PWM_ENABLE_3,
 	PMBUS_VIRT_PWM_ENABLE_4,
+
+	/* Samples for average
+	 *
+	 * Drivers wanting to expose functionality for changing the number of
+	 * samples used for average values should implement support in
+	 * {read,write}_word_data callback for either PMBUS_VIRT_SAMPLES if it
+	 * applies to all types of measurements, or any number of specific
+	 * PMBUS_VIRT_*_SAMPLES registers to allow for individual control.
+	 */
+	PMBUS_VIRT_SAMPLES,
+	PMBUS_VIRT_IN_SAMPLES,
+	PMBUS_VIRT_CURR_SAMPLES,
+	PMBUS_VIRT_POWER_SAMPLES,
+	PMBUS_VIRT_TEMP_SAMPLES,
 };
 
 /*
@@ -371,8 +372,11 @@ enum pmbus_sensor_classes {
 #define PMBUS_HAVE_STATUS_VMON	BIT(19)
 #define PMBUS_HAVE_PWM12	BIT(20)
 #define PMBUS_HAVE_PWM34	BIT(21)
+#define PMBUS_HAVE_SAMPLES	BIT(22)
 
 #define PMBUS_PAGE_VIRTUAL	BIT(31)
+
+#define PMBUS_BLOCK_MAX		255
 
 enum pmbus_data_format { linear = 0, direct, vid };
 enum vrm_version { vr11 = 0, vr12, vr13 };
@@ -417,6 +421,9 @@ struct pmbus_driver_info {
 	/* Regulator functionality, if supported by this chip driver. */
 	int num_regulators;
 	const struct regulator_desc *reg_desc;
+
+	/* custom attributes */
+	const struct attribute_group **groups;
 };
 
 /* Regulator ops */
@@ -439,6 +446,11 @@ extern const struct regulator_ops pmbus_regulator_ops;
 
 void pmbus_clear_cache(struct i2c_client *client);
 int pmbus_set_page(struct i2c_client *client, int page);
+int pmbus_block_write(struct i2c_client *client, u8 cmd, u8 w_len, u8 *data_w);
+int pmbus_block_wr(struct i2c_client *client, u8 cmd, u8 w_len, u8 *data_w,
+		   u8 *data_r);
+int pmbus_group_command(struct i2c_client **clients, u8 *cmds, u8 *w_lens,
+			u8 **data_w, u8 nr_cmds);
 int pmbus_read_word_data(struct i2c_client *client, int page, u8 reg);
 int pmbus_write_word_data(struct i2c_client *client, int page, u8 reg, u16 word);
 int pmbus_read_byte_data(struct i2c_client *client, int page, u8 reg);

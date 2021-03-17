@@ -225,7 +225,7 @@ EXPORT_SYMBOL_GPL(__adis_read_reg);
  * Updates the desired bits of @reg in accordance with @mask and @val.
  */
 int __adis_update_bits_base(struct adis *adis, unsigned int reg, const u32 mask,
-			    u32 val, u8 size)
+			    const u32 val, u8 size)
 {
 	int ret;
 	u32 __val;
@@ -234,8 +234,7 @@ int __adis_update_bits_base(struct adis *adis, unsigned int reg, const u32 mask,
 	if (ret)
 		return ret;
 
-	__val &= ~mask;
-	__val |= val & mask;
+	__val = (__val & ~mask) | (val & mask);
 
 	return __adis_write_reg(adis, reg, __val, size);
 }
@@ -436,7 +435,7 @@ int __adis_initial_startup(struct adis *adis)
 
 	if (prod_id != adis->data->prod_id)
 		dev_warn(&adis->spi->dev,
-			 "Device ID(%u) and product ID(%u) do not match.",
+			 "Device ID(%u) and product ID(%u) do not match.\n",
 			 adis->data->prod_id, prod_id);
 
 	return 0;

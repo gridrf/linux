@@ -1,7 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Analog Devices AD-FMCADC2-EBZ
+ * https://wiki.analog.com/resources/eval/user-guides/ad-fmcadc2-ebz
+ *
+ * hdl_project: <fmcadc2/zc706>
+ * board_revision: <>
+ *
+ * Copyright (C) 2014-2020 Analog Devices Inc.
+ */
 /dts-v1/;
 
 #include "zynq-zc706.dtsi"
 #include "zynq-zc706-adv7511.dtsi"
+#include <dt-bindings/jesd204/adxcvr.h>
 
 / {
 	clocks {
@@ -126,9 +137,8 @@
 		#clock-cells = <1>;
 		clock-output-names = "adc_gt_clk", "rx_out_clk";
 
-		adi,sys-clk-select = <0>;
-		adi,out-clk-select = <2>;
-		adi,use-cpll-enable;
+		adi,sys-clk-select = <XCVR_CPLL>;
+		adi,out-clk-select = <XCVR_OUTCLK_PMA>;
 	};
 };
 

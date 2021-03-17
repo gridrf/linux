@@ -1,9 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * ADF4350/ADF4351 SPI Wideband Synthesizer driver
  *
- * Copyright 2012-2014 Analog Devices Inc.
- *
- * Licensed under the GPL-2.
+ * Copyright 2012-2013 Analog Devices Inc.
  */
 
 #include <linux/device.h>
@@ -361,7 +360,8 @@ static struct adf4350_platform_data *adf4350_parse_dt(struct device *dev)
 	if (!pdata)
 		return ERR_PTR(-ENOMEM);
 
-	strncpy(&pdata->name[0], dev_name(dev), SPI_NAME_SIZE - 1);
+	/* FIXME: make this more upstreamable */
+	snprintf(&pdata->name[0], SPI_NAME_SIZE - 1, "%pOFn", dev->of_node->name);
 
 	if (device_property_read_u32(dev, "adi,channel-spacing", &tmp))
 		tmp = 10000;
@@ -507,8 +507,13 @@ static int adf4350_probe(struct spi_device *spi)
 	st->pdata = pdata;
 
 	indio_dev->dev.parent = &spi->dev;
-	indio_dev->name = (pdata->name[0] != 0) ? pdata->name :
-		spi_get_device_id(spi)->name;
+
+	if (spi->dev.of_node)
+		indio_dev->name = spi->dev.of_node->name;
+	else if (pdata->name[0] != 0)
+		indio_dev->name = pdata->name;
+	else
+		indio_dev->name = spi_get_device_id(spi)->name;
 
 	indio_dev->info = &adf4350_info;
 	indio_dev->modes = INDIO_DIRECT_MODE;

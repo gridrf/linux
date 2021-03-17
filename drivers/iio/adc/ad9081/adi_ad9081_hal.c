@@ -9,7 +9,7 @@
  */
 
 /*!
- * @addtogroup __AD9081_HAL__
+ * @addtogroup AD9081_HAL_API
  * @{
  */
 
@@ -438,7 +438,7 @@ int32_t adi_ad9081_hal_cbusjrx_reg_get(adi_ad9081_device_t *device,
 	if (API_CMS_ERROR_OK !=
 	    adi_ad9081_hal_reg_set(device, 0x409, 1 << lane))
 		return API_CMS_ERROR_SPI_XFER;
-	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 100000))
+	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 500))
 		return API_CMS_ERROR_DELAY_US;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_get(device, 0x40a, data))
 		return API_CMS_ERROR_SPI_XFER;
@@ -456,18 +456,16 @@ int32_t adi_ad9081_hal_cbusjrx_reg_set(adi_ad9081_device_t *device,
 		return API_CMS_ERROR_SPI_XFER;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_set(device, 0x408, data))
 		return API_CMS_ERROR_SPI_XFER;
-	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 100000))
+	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 500))
 		return API_CMS_ERROR_DELAY_US;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_set(device, 0x407, 0x00))
 		return API_CMS_ERROR_SPI_XFER;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_set(device, 0x407, lane))
 		return API_CMS_ERROR_SPI_XFER;
-	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 100000))
+	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 500))
 		return API_CMS_ERROR_DELAY_US;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_set(device, 0x407, 0x00))
 		return API_CMS_ERROR_SPI_XFER;
-	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 100000))
-		return API_CMS_ERROR_DELAY_US;
 
 	return API_CMS_ERROR_OK;
 }
@@ -485,7 +483,7 @@ int32_t adi_ad9081_hal_cbusjtx_reg_get(adi_ad9081_device_t *device,
 	if (API_CMS_ERROR_OK !=
 	    adi_ad9081_hal_reg_set(device, 0x794, 1 << lane))
 		return API_CMS_ERROR_SPI_XFER;
-	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 100000))
+	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 500))
 		return API_CMS_ERROR_DELAY_US;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_get(device, 0x796, data))
 		return API_CMS_ERROR_SPI_XFER;
@@ -503,18 +501,16 @@ int32_t adi_ad9081_hal_cbusjtx_reg_set(adi_ad9081_device_t *device,
 		return API_CMS_ERROR_SPI_XFER;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_set(device, 0x793, data))
 		return API_CMS_ERROR_SPI_XFER;
-	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 100000))
+	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 500))
 		return API_CMS_ERROR_DELAY_US;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_set(device, 0x791, 0x00))
 		return API_CMS_ERROR_SPI_XFER;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_set(device, 0x791, lane))
 		return API_CMS_ERROR_SPI_XFER;
-	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 100000))
+	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 500))
 		return API_CMS_ERROR_DELAY_US;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_set(device, 0x791, 0x00))
 		return API_CMS_ERROR_SPI_XFER;
-	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 100000))
-		return API_CMS_ERROR_DELAY_US;
 
 	return API_CMS_ERROR_OK;
 }
@@ -528,7 +524,7 @@ int32_t adi_ad9081_hal_cbuspll_reg_get(adi_ad9081_device_t *device,
 		return API_CMS_ERROR_SPI_XFER;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_set(device, 0x72E, 0x01))
 		return API_CMS_ERROR_SPI_XFER;
-	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 100000))
+	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 500))
 		return API_CMS_ERROR_DELAY_US;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_get(device, 0x742, data))
 		return API_CMS_ERROR_SPI_XFER;
@@ -546,7 +542,7 @@ int32_t adi_ad9081_hal_cbuspll_reg_set(adi_ad9081_device_t *device,
 		return API_CMS_ERROR_SPI_XFER;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_set(device, 0x741, data))
 		return API_CMS_ERROR_SPI_XFER;
-	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 100000))
+	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 500))
 		return API_CMS_ERROR_DELAY_US;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_set(device, 0x72F, 0x00))
 		return API_CMS_ERROR_SPI_XFER;
@@ -554,8 +550,6 @@ int32_t adi_ad9081_hal_cbuspll_reg_set(adi_ad9081_device_t *device,
 		return API_CMS_ERROR_SPI_XFER;
 	if (API_CMS_ERROR_OK != adi_ad9081_hal_reg_set(device, 0x72F, 0x00))
 		return API_CMS_ERROR_SPI_XFER;
-	if (API_CMS_ERROR_OK != adi_ad9081_hal_delay_us(device, 100000))
-		return API_CMS_ERROR_DELAY_US;
 
 	return API_CMS_ERROR_OK;
 }
@@ -632,8 +626,8 @@ void adi_ad9081_hal_add_128(uint64_t ah, uint64_t al, uint64_t bh, uint64_t bl,
 	*hi = rh;
 }
 
-void adi_ad9081_hal_subt_128(uint64_t ah, uint64_t al, uint64_t bh, uint64_t bl,
-			     uint64_t *hi, uint64_t *lo)
+void adi_ad9081_hal_sub_128(uint64_t ah, uint64_t al, uint64_t bh, uint64_t bl,
+			    uint64_t *hi, uint64_t *lo)
 {
 	uint64_t rl, rh;
 	if (bl <= al) {
@@ -694,9 +688,9 @@ void adi_ad9081_hal_div_128(uint64_t a_hi, uint64_t a_lo, uint64_t b_hi,
 	do {
 		if ((remain_hi > part1_hi) ||
 		    ((remain_hi == part1_hi) && (remain_lo >= part1_lo))) {
-			adi_ad9081_hal_subt_128(remain_hi, remain_lo, part1_hi,
-						part1_lo, &remain_hi,
-						&remain_lo);
+			adi_ad9081_hal_sub_128(remain_hi, remain_lo, part1_hi,
+					       part1_lo, &remain_hi,
+					       &remain_lo);
 			adi_ad9081_hal_add_128(result_hi, result_lo, mask_hi,
 					       mask_lo, &result_hi, &result_lo);
 		}
@@ -707,37 +701,119 @@ void adi_ad9081_hal_div_128(uint64_t a_hi, uint64_t a_lo, uint64_t b_hi,
 	*hi = result_hi;
 }
 
+int32_t adi_ad9081_hal_calc_nco_ftw(adi_ad9081_device_t *device, uint64_t freq,
+				    int64_t nco_shift, uint64_t *ftw,
+				    uint64_t *a, uint64_t *b)
+{
+	uint64_t hi, lo, hi1, hi2, lo2, hi3, lo3, hi4, lo4;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+	AD9081_INVALID_PARAM_RETURN(freq == 0);
+
+	/* ftw + a/b   nco_shift */
+	/* --------- = --------- */
+	/*    2^48        freq   */
+	if (nco_shift >= 0) {
+		adi_ad9081_hal_mult_128(281474976710656ull, nco_shift, &hi,
+					&lo);
+		adi_ad9081_hal_div_128(hi, lo, 0, freq, &hi1, ftw);
+		adi_ad9081_hal_mult_128(*ftw, freq, &hi2, &lo2);
+		adi_ad9081_hal_sub_128(hi, lo, hi2, lo2, &hi3, &lo3);
+		adi_ad9081_hal_mult_128(lo3, 281474976710655ull, &hi4, &lo4);
+		adi_ad9081_hal_div_128(hi4, lo4, 0, freq, &hi1, a);
+		*b = 281474976710655ull;
+	} else {
+		adi_ad9081_hal_mult_128(281474976710656ull, -nco_shift, &hi,
+					&lo);
+		adi_ad9081_hal_div_128(hi, lo, 0, freq, &hi, ftw);
+		adi_ad9081_hal_mult_128(*ftw, freq, &hi2, &lo2);
+		adi_ad9081_hal_sub_128(hi, lo, hi2, lo2, &hi3, &lo3);
+		adi_ad9081_hal_mult_128(lo3, 281474976710655ull, &hi4, &lo4);
+		adi_ad9081_hal_div_128(hi4, lo4, 0, freq, &hi1, a);
+		*b = 281474976710655ull;
+		*a = (*a > 0) ?
+			     (281474976710656ull - *a) :
+			     *a; /* assume register a/b is unsigned 48bit value */
+		*ftw = 281474976710656ull - *ftw - (*a > 0 ? 1 : 0);
+	}
+
+	return API_CMS_ERROR_OK;
+}
+
+#if AD9081_USE_FLOATING_TYPE > 0
+int32_t adi_ad9081_hal_calc_nco_ftw_f(adi_ad9081_device_t *device, double freq,
+				      double nco_shift, uint64_t *ftw,
+				      uint64_t *a, uint64_t *b)
+{
+	double set_shift, rem_shift;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+	AD9081_INVALID_PARAM_RETURN(freq == 0);
+
+	/* ftw + a/b   nco_shift */
+	/* --------- = --------- */
+	/*    2^48        freq   */
+	if (nco_shift >= 0) {
+		*ftw = (uint64_t)(281474976710656ull * nco_shift / freq);
+		set_shift = (*ftw) * freq / 281474976710656ull;
+		rem_shift = nco_shift - set_shift;
+		*b = 281474976710655ull;
+		*a = (uint64_t)((rem_shift * 281474976710656ull / freq) * (*b));
+	} else {
+		*ftw = (uint64_t)(281474976710656ull * (-nco_shift) / freq);
+		set_shift = (*ftw) * freq / 281474976710656ull;
+		rem_shift = -nco_shift - set_shift;
+		*b = 281474976710655ull;
+		*a = (uint64_t)((rem_shift * 281474976710656ull / freq) * (*b));
+		*a = (*a > 0) ?
+			     (281474976710656ull - *a) :
+			     *a; /* assume register a/b is unsigned 48bit value */
+		*ftw = 281474976710656ull - *ftw - (*a > 0 ? 1 : 0);
+	}
+
+	return API_CMS_ERROR_OK;
+}
+#endif
+
 int32_t adi_ad9081_hal_calc_rx_nco_ftw(adi_ad9081_device_t *device,
 				       uint64_t adc_freq, int64_t nco_shift,
 				       uint64_t *ftw)
 {
-	uint64_t a, b, hi, lo;
+	uint64_t hi, lo;
 	AD9081_NULL_POINTER_RETURN(device);
 	AD9081_LOG_FUNC();
 	AD9081_INVALID_PARAM_RETURN(adc_freq == 0);
 
 	if (nco_shift >= 0) {
-#ifdef __KERNEL__
-		a = div64_u64((uint64_t)nco_shift, adc_freq);
-#else
-		a = nco_shift / adc_freq;
-#endif
-		b = nco_shift -
-		    (a * adc_freq); /* b = fmod(nco_shift, adc_freq) */
-		adi_ad9081_hal_mult_128(281474976710656ull, b, &hi, &lo);
-		adi_ad9081_hal_add_128(hi, lo, 0, adc_freq - 1, &hi, &lo);
+		adi_ad9081_hal_mult_128(281474976710656ull, nco_shift, &hi,
+					&lo);
 		adi_ad9081_hal_div_128(hi, lo, 0, adc_freq, &hi, ftw);
 	} else {
-#ifdef __KERNEL__
-		a = div64_u64((uint64_t)-nco_shift, adc_freq);
-#else
-		a = -nco_shift / adc_freq;
-#endif
-		b = -nco_shift - (a * adc_freq);
-		adi_ad9081_hal_mult_128(281474976710656ull, b, &hi, &lo);
-		adi_ad9081_hal_add_128(hi, lo, 0, adc_freq - 1, &hi, &lo);
+		adi_ad9081_hal_mult_128(281474976710656ull, -nco_shift, &hi,
+					&lo);
 		adi_ad9081_hal_div_128(hi, lo, 0, adc_freq, &hi, ftw);
 		*ftw = 281474976710656ull - *ftw;
+	}
+
+	return API_CMS_ERROR_OK;
+}
+
+int32_t adi_ad9081_hal_calc_rx_nco_ftw32(adi_ad9081_device_t *device,
+					 uint64_t adc_freq, int64_t nco_shift,
+					 uint64_t *ftw)
+{
+	uint64_t hi, lo;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+	AD9081_INVALID_PARAM_RETURN(adc_freq == 0);
+
+	if (nco_shift >= 0) {
+		adi_ad9081_hal_mult_128(4294967296ull, nco_shift, &hi, &lo);
+		adi_ad9081_hal_div_128(hi, lo, 0, adc_freq, &hi, ftw);
+	} else {
+		adi_ad9081_hal_mult_128(4294967296ull, -nco_shift, &hi, &lo);
+		adi_ad9081_hal_div_128(hi, lo, 0, adc_freq, &hi, ftw);
+		*ftw = 4294967296ull - *ftw;
 	}
 
 	return API_CMS_ERROR_OK;
@@ -782,6 +858,276 @@ int32_t adi_ad9081_hal_calc_tx_nco_ftw32(adi_ad9081_device_t *device,
 		adi_ad9081_hal_mult_128(4294967296ull, -nco_shift, &hi, &lo);
 		adi_ad9081_hal_div_128(hi, lo, 0, dac_freq, &hi, ftw);
 		*ftw = 4294967296ull - *ftw;
+	}
+
+	return API_CMS_ERROR_OK;
+}
+
+int32_t adi_ad9081_hal_2bf_get(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint8_t *value0, uint32_t info1,
+			       uint8_t *value1, uint8_t value_size_bytes)
+{
+	uint32_t info[2] = { info0, info1 };
+	uint8_t *value[2] = { value0, value1 };
+	return adi_ad9081_hal_multi_bf_get(device, reg, info, value,
+					   value_size_bytes, 2);
+}
+
+int32_t adi_ad9081_hal_3bf_get(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint8_t *value0, uint32_t info1,
+			       uint8_t *value1, uint32_t info2, uint8_t *value2,
+			       uint8_t value_size_bytes)
+{
+	uint32_t info[3] = { info0, info1, info2 };
+	uint8_t *value[3] = { value0, value1, value2 };
+	return adi_ad9081_hal_multi_bf_get(device, reg, info, value,
+					   value_size_bytes, 3);
+}
+
+int32_t adi_ad9081_hal_4bf_get(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint8_t *value0, uint32_t info1,
+			       uint8_t *value1, uint32_t info2, uint8_t *value2,
+			       uint32_t info3, uint8_t *value3,
+			       uint8_t value_size_bytes)
+{
+	uint32_t info[4] = { info0, info1, info2, info3 };
+	uint8_t *value[4] = { value0, value1, value2, value3 };
+	return adi_ad9081_hal_multi_bf_get(device, reg, info, value,
+					   value_size_bytes, 4);
+}
+
+int32_t adi_ad9081_hal_5bf_get(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint8_t *value0, uint32_t info1,
+			       uint8_t *value1, uint32_t info2, uint8_t *value2,
+			       uint32_t info3, uint8_t *value3, uint32_t info4,
+			       uint8_t *value4, uint8_t value_size_bytes)
+{
+	uint32_t info[5] = { info0, info1, info2, info3, info4 };
+	uint8_t *value[5] = { value0, value1, value2, value3, value4 };
+	return adi_ad9081_hal_multi_bf_get(device, reg, info, value,
+					   value_size_bytes, 5);
+}
+
+int32_t adi_ad9081_hal_6bf_get(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint8_t *value0, uint32_t info1,
+			       uint8_t *value1, uint32_t info2, uint8_t *value2,
+			       uint32_t info3, uint8_t *value3, uint32_t info4,
+			       uint8_t *value4, uint32_t info5, uint8_t *value5,
+			       uint8_t value_size_bytes)
+{
+	uint32_t info[6] = { info0, info1, info2, info3, info4, info5 };
+	uint8_t *value[6] = { value0, value1, value2, value3, value4, value5 };
+	return adi_ad9081_hal_multi_bf_get(device, reg, info, value,
+					   value_size_bytes, 6);
+}
+
+int32_t adi_ad9081_hal_7bf_get(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint8_t *value0, uint32_t info1,
+			       uint8_t *value1, uint32_t info2, uint8_t *value2,
+			       uint32_t info3, uint8_t *value3, uint32_t info4,
+			       uint8_t *value4, uint32_t info5, uint8_t *value5,
+			       uint32_t info6, uint8_t *value6,
+			       uint8_t value_size_bytes)
+{
+	uint32_t info[7] = { info0, info1, info2, info3, info4, info5, info6 };
+	uint8_t *value[7] = { value0, value1, value2, value3,
+			      value4, value5, value6 };
+	return adi_ad9081_hal_multi_bf_get(device, reg, info, value,
+					   value_size_bytes, 7);
+}
+
+int32_t adi_ad9081_hal_8bf_get(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint8_t *value0, uint32_t info1,
+			       uint8_t *value1, uint32_t info2, uint8_t *value2,
+			       uint32_t info3, uint8_t *value3, uint32_t info4,
+			       uint8_t *value4, uint32_t info5, uint8_t *value5,
+			       uint32_t info6, uint8_t *value6, uint32_t info7,
+			       uint8_t *value7, uint8_t value_size_bytes)
+{
+	uint32_t info[8] = { info0, info1, info2, info3,
+			     info4, info5, info6, info7 };
+	uint8_t *value[8] = { value0, value1, value2, value3,
+			      value4, value5, value6, value7 };
+	return adi_ad9081_hal_multi_bf_get(device, reg, info, value,
+					   value_size_bytes, 8);
+}
+
+int32_t adi_ad9081_hal_2bf_set(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint64_t value0, uint32_t info1,
+			       uint64_t value1)
+{
+	uint32_t info[2] = { info0, info1 };
+	uint64_t value[2] = { value0, value1 };
+	return adi_ad9081_hal_multi_bf_set(device, reg, info, value, 2);
+}
+
+int32_t adi_ad9081_hal_3bf_set(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint64_t value0, uint32_t info1,
+			       uint64_t value1, uint32_t info2, uint64_t value2)
+{
+	uint32_t info[3] = { info0, info1, info2 };
+	uint64_t value[3] = { value0, value1, value2 };
+	return adi_ad9081_hal_multi_bf_set(device, reg, info, value, 3);
+}
+
+int32_t adi_ad9081_hal_4bf_set(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint64_t value0, uint32_t info1,
+			       uint64_t value1, uint32_t info2, uint64_t value2,
+			       uint32_t info3, uint64_t value3)
+{
+	uint32_t info[4] = { info0, info1, info2, info3 };
+	uint64_t value[4] = { value0, value1, value2, value3 };
+	return adi_ad9081_hal_multi_bf_set(device, reg, info, value, 4);
+}
+
+int32_t adi_ad9081_hal_5bf_set(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint64_t value0, uint32_t info1,
+			       uint64_t value1, uint32_t info2, uint64_t value2,
+			       uint32_t info3, uint64_t value3, uint32_t info4,
+			       uint64_t value4)
+{
+	uint32_t info[5] = { info0, info1, info2, info3, info4 };
+	uint64_t value[5] = { value0, value1, value2, value3, value4 };
+	return adi_ad9081_hal_multi_bf_set(device, reg, info, value, 5);
+}
+
+int32_t adi_ad9081_hal_6bf_set(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint64_t value0, uint32_t info1,
+			       uint64_t value1, uint32_t info2, uint64_t value2,
+			       uint32_t info3, uint64_t value3, uint32_t info4,
+			       uint64_t value4, uint32_t info5, uint64_t value5)
+{
+	uint32_t info[6] = { info0, info1, info2, info3, info4, info5 };
+	uint64_t value[6] = { value0, value1, value2, value3, value4, value5 };
+	return adi_ad9081_hal_multi_bf_set(device, reg, info, value, 6);
+}
+
+int32_t adi_ad9081_hal_7bf_set(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint64_t value0, uint32_t info1,
+			       uint64_t value1, uint32_t info2, uint64_t value2,
+			       uint32_t info3, uint64_t value3, uint32_t info4,
+			       uint64_t value4, uint32_t info5, uint64_t value5,
+			       uint32_t info6, uint64_t value6)
+{
+	uint32_t info[7] = { info0, info1, info2, info3, info4, info5, info6 };
+	uint64_t value[7] = { value0, value1, value2, value3,
+			      value4, value5, value6 };
+	return adi_ad9081_hal_multi_bf_set(device, reg, info, value, 7);
+}
+
+int32_t adi_ad9081_hal_8bf_set(adi_ad9081_device_t *device, uint32_t reg,
+			       uint32_t info0, uint64_t value0, uint32_t info1,
+			       uint64_t value1, uint32_t info2, uint64_t value2,
+			       uint32_t info3, uint64_t value3, uint32_t info4,
+			       uint64_t value4, uint32_t info5, uint64_t value5,
+			       uint32_t info6, uint64_t value6, uint32_t info7,
+			       uint64_t value7)
+{
+	uint32_t info[8] = { info0, info1, info2, info3,
+			     info4, info5, info6, info7 };
+	uint64_t value[8] = { value0, value1, value2, value3,
+			      value4, value5, value6, value7 };
+	return adi_ad9081_hal_multi_bf_set(device, reg, info, value, 8);
+}
+
+int32_t adi_ad9081_hal_multi_bf_get(adi_ad9081_device_t *device, uint32_t reg,
+				    uint32_t *info, uint8_t **value,
+				    uint8_t value_size_bytes, uint8_t num_bfs)
+{
+	int32_t err;
+	uint32_t mask = 0;
+	uint8_t data8 = 0, offset = 0, width = 0;
+	uint8_t i = 0, reg_bytes = 0, reg_read_reqd = 1;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_NULL_POINTER_RETURN(info);
+	AD9081_NULL_POINTER_RETURN(value);
+	AD9081_INVALID_PARAM_RETURN(reg >= 0x4000);
+
+	if (num_bfs == 1) {
+		/* Use the standard non multi bit field */
+		return adi_ad9081_hal_bf_get(device, reg, *info, *value,
+					     value_size_bytes);
+	}
+
+	/* Extract the mulit bit-fields from a single reg, or use standard method for more complex situations. */
+	for (i = 0; i < num_bfs; i++) {
+		offset = (uint8_t)(*(info + i) >> 0);
+		width = (uint8_t)(*(info + i) >> 8);
+		reg_bytes = ((width + offset) >> 3) +
+			    (((width + offset) & 7) == 0 ? 0 : 1);
+
+		if ((reg_bytes == 1) && (value_size_bytes == 1)) {
+			if (reg_read_reqd == 1) {
+				reg_read_reqd = 0;
+				err = adi_ad9081_hal_reg_get(device, reg,
+							     &data8);
+				AD9081_ERROR_RETURN(err);
+			}
+			mask = (1 << width) - 1;
+			**(value + i) = (data8 >> offset) & mask;
+		} else {
+			/* Use non-multi bf get */
+			AD9081_LOG_WARN(
+				"Multi bit-field get doesn't support cross register access. Will use standard, but incurs extra SPI reads.");
+			err = adi_ad9081_hal_bf_get(device, reg, *(info + i),
+						    *(value + i),
+						    value_size_bytes);
+			AD9081_ERROR_RETURN(err);
+		}
+	}
+
+	return API_CMS_ERROR_OK;
+}
+
+int32_t adi_ad9081_hal_multi_bf_set(adi_ad9081_device_t *device, uint32_t reg,
+				    uint32_t *info, uint64_t *value,
+				    uint8_t num_bfs)
+{
+	int32_t err;
+	uint32_t mask = 0;
+	uint8_t data8 = 0, offset = 0, width = 0;
+	uint8_t i = 0, reg_bytes = 0, reg_read_reqd = 1;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_NULL_POINTER_RETURN(info);
+	AD9081_NULL_POINTER_RETURN(value);
+	AD9081_INVALID_PARAM_RETURN(reg >= 0x4000);
+
+	if (num_bfs == 1) {
+		/* Use the standard non multi bit field */
+		return adi_ad9081_hal_bf_set(device, reg, *info, *value);
+	}
+
+	/* Write the bit fields */
+	for (i = 0; i < num_bfs; i++) {
+		offset = (uint8_t)(*(info + i) >> 0);
+		width = (uint8_t)(*(info + i) >> 8);
+		reg_bytes = ((width + offset) >> 3) +
+			    (((width + offset) & 7) == 0 ? 0 : 1);
+
+		if (reg_bytes == 1) {
+			if ((reg_read_reqd == 1) &&
+			    ((offset > 0) || ((offset + width) < 8))) {
+				reg_read_reqd = 0;
+				err = adi_ad9081_hal_reg_get(device, reg,
+							     &data8);
+				AD9081_ERROR_RETURN(err);
+			}
+			mask = (1 << width) - 1;
+			data8 = data8 & (~(mask << offset));
+			data8 = data8 | ((*(value + i) & mask) << offset);
+		} else {
+			/* Use non-multi bf set */
+			AD9081_LOG_WARN(
+				"multi bit-field set doesn't support cross register bit-fields.Will use standard, but incurs extra SPI reads.");
+			err = adi_ad9081_hal_bf_set(device, reg, *(info + i),
+						    *(value + i));
+			AD9081_ERROR_RETURN(err);
+		}
+	}
+
+	if (reg_read_reqd == 0) {
+		err = adi_ad9081_hal_reg_set(device, reg, data8);
+		AD9081_ERROR_RETURN(err);
 	}
 
 	return API_CMS_ERROR_OK;

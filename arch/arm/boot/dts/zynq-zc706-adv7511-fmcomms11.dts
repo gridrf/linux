@@ -1,7 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Analog Devices AD-FMCOMMS11-EBZ
+ * https://wiki.analog.com/resources/tools-software/linux-drivers/iio-transceiver/ad9361
+ * https://wiki.analog.com/resources/eval/user-guides/ad-fmcomms11-ebz/hardware/functional_overview
+ *
+ * hdl_project: <fmcomms11/zc706>
+ * board_revision: <>
+ *
+ * Copyright (C) 2014-2020 Analog Devices Inc.
+*/
 /dts-v1/;
 
 #include "zynq-zc706.dtsi"
 #include "zynq-zc706-adv7511.dtsi"
+#include <dt-bindings/jesd204/adxcvr.h>
 
 &i2c_mux {
 	i2c@5 { /* HPC IIC */
@@ -133,23 +145,22 @@
 		#clock-cells = <1>;
 		clock-output-names = "adc_gt_clk", "rx_out_clk";
 
-		adi,sys-clk-select = <0>;
-		adi,out-clk-select = <2>;
-		adi,use-cpll-enable;
+		adi,sys-clk-select = <XCVR_CPLL>;
+		adi,out-clk-select = <XCVR_OUTCLK_PMA>;
 		adi,use-lpm-enable;
 	};
 
 	tx_adxcvr: axi-adxcvr-tx@44a60000 {
 		compatible = "adi,axi-adxcvr-1.0";
 		reg = <0x44a60000 0x1000>;
-		clocks = <&adc_divclk>;
+		clocks = <&adc0_ad9625>;
 		clock-names = "conv";
 
 		#clock-cells = <1>;
 		clock-output-names = "dac_gt_clk", "tx_out_clk";
 
-		adi,sys-clk-select = <3>;
-		adi,out-clk-select = <2>;
+		adi,sys-clk-select = <XCVR_QPLL>;
+		adi,out-clk-select = <XCVR_OUTCLK_PMA>;
 	};
 };
 

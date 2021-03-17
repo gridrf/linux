@@ -23,6 +23,7 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_dp_helper.h>
 #include <drm/drm_of.h>
+#include <drm/drm_probe_helper.h>
 
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -489,7 +490,7 @@ static int zynqmp_dp_init_phy(struct zynqmp_dp *dp)
 		zynqmp_dp_write(dp->iomem, ZYNQMP_DP_SUB_TX_INTR_DS,
 				ZYNQMP_DP_TX_INTR_ALL);
 		zynqmp_dp_clr(dp->iomem, ZYNQMP_DP_TX_PHY_CONFIG,
-				ZYNQMP_DP_TX_PHY_CONFIG_ALL_RESET);
+			      ZYNQMP_DP_TX_PHY_CONFIG_ALL_RESET);
 		ret = xpsgtr_wait_pll_lock(dp->phy[0]);
 		if (ret) {
 			dev_err(dp->dev, "failed to lock pll\n");
@@ -1710,13 +1711,14 @@ int zynqmp_dp_bind(struct device *dev, struct device *master, void *data)
 				   ret ? ret : 8);
 	zynqmp_dp_update_bpp(dp);
 
+	INIT_DELAYED_WORK(&dp->hpd_work, zynqmp_dp_hpd_work_func);
+
 	/* This enables interrupts, so should be called after DRM init */
 	ret = zynqmp_dp_init_aux(dp);
 	if (ret) {
 		dev_err(dp->dev, "failed to initialize DP aux");
 		goto error_prop;
 	}
-	INIT_DELAYED_WORK(&dp->hpd_work, zynqmp_dp_hpd_work_func);
 
 	return 0;
 

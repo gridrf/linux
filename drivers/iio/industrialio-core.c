@@ -1,10 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /* The industrial I/O core
  *
  * Copyright (c) 2008 Jonathan Cameron
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 as published by
- * the Free Software Foundation.
  *
  * Based on elements of hwmon and input subsystems.
  */
@@ -88,6 +85,7 @@ static const char * const iio_chan_type_name_spec[] = {
 	[IIO_GRAVITY]  = "gravity",
 	[IIO_POSITIONRELATIVE]  = "positionrelative",
 	[IIO_PHASE] = "phase",
+	[IIO_MASSCONCENTRATION] = "massconcentration",
 	[IIO_GENERIC_DATA] = "data",
 	[IIO_FLAGS] = "flags",
 };
@@ -130,11 +128,16 @@ static const char * const iio_modifier_names[] = {
 	[IIO_MOD_Q] = "q",
 	[IIO_MOD_CO2] = "co2",
 	[IIO_MOD_VOC] = "voc",
+	[IIO_MOD_PM1] = "pm1",
+	[IIO_MOD_PM2P5] = "pm2p5",
+	[IIO_MOD_PM4] = "pm4",
+	[IIO_MOD_PM10] = "pm10",
 };
 
 /* relies on pairs of these shared then separate */
 static const char * const iio_chan_info_postfix[] = {
 	[IIO_CHAN_INFO_RAW] = "raw",
+	[IIO_CHAN_INFO_LABEL] = "label",
 	[IIO_CHAN_INFO_PROCESSED] = "input",
 	[IIO_CHAN_INFO_SCALE] = "scale",
 	[IIO_CHAN_INFO_OFFSET] = "offset",
@@ -229,9 +232,9 @@ s64 iio_get_time_ns(const struct iio_dev *indio_dev)
 		ktime_get_coarse_ts64(&tp);
 		return timespec64_to_ns(&tp);
 	case CLOCK_BOOTTIME:
-		return ktime_get_boot_ns();
+		return ktime_get_boottime_ns();
 	case CLOCK_TAI:
-		return ktime_get_tai_ns();
+		return ktime_get_clocktai_ns();
 	default:
 		BUG();
 	}
@@ -654,14 +657,19 @@ static ssize_t iio_read_channel_info(struct device *dev,
 	int ret;
 	int val_len = 2;
 
-	if (indio_dev->info->read_raw_multi)
+	if (indio_dev->info->read_raw_multi) {
 		ret = indio_dev->info->read_raw_multi(indio_dev, this_attr->c,
 							INDIO_MAX_RAW_ELEMENTS,
 							vals, &val_len,
 							this_attr->address);
-	else
+	} else {
+		if (this_attr->address == IIO_CHAN_INFO_LABEL &&
+			this_attr->c->label_name)
+			return sprintf(buf, "%s\n", this_attr->c->label_name);
+
 		ret = indio_dev->info->read_raw(indio_dev, this_attr->c,
 				    &vals[0], &vals[1], this_attr->address);
+	}
 
 	if (ret < 0)
 		return ret;
@@ -1400,6 +1408,7 @@ static int iio_device_register_sysfs(struct iio_dev *indio_dev)
 			attrcount_orig++;
 	}
 	attrcount = attrcount_orig;
+
 	/*
 	 * New channel registration method - relies on the fact a group does
 	 * not need to be initialized if its name is NULL.
@@ -1508,27 +1517,27 @@ struct iio_dev *iio_device_alloc(int sizeof_priv)
 	alloc_size += IIO_ALIGN - 1;
 
 	dev = kzalloc(alloc_size, GFP_KERNEL);
+	if (!dev)
+		return NULL;
 
-	if (dev) {
-		dev->dev.groups = dev->groups;
-		dev->dev.type = &iio_device_type;
-		dev->dev.bus = &iio_bus_type;
-		device_initialize(&dev->dev);
-		dev_set_drvdata(&dev->dev, (void *)dev);
-		mutex_init(&dev->mlock);
-		mutex_init(&dev->info_exist_lock);
-		INIT_LIST_HEAD(&dev->channel_attr_list);
+	dev->dev.groups = dev->groups;
+	dev->dev.type = &iio_device_type;
+	dev->dev.bus = &iio_bus_type;
+	device_initialize(&dev->dev);
+	dev_set_drvdata(&dev->dev, (void *)dev);
+	mutex_init(&dev->mlock);
+	mutex_init(&dev->info_exist_lock);
+	INIT_LIST_HEAD(&dev->channel_attr_list);
 
-		dev->id = ida_simple_get(&iio_ida, 0, 0, GFP_KERNEL);
-		if (dev->id < 0) {
-			/* cannot use a dev_err as the name isn't available */
-			pr_err("failed to get device id\n");
-			kfree(dev);
-			return NULL;
-		}
-		dev_set_name(&dev->dev, "iio:device%d", dev->id);
-		INIT_LIST_HEAD(&dev->buffer_list);
+	dev->id = ida_simple_get(&iio_ida, 0, 0, GFP_KERNEL);
+	if (dev->id < 0) {
+		/* cannot use a dev_err as the name isn't available */
+		pr_err("failed to get device id\n");
+		kfree(dev);
+		return NULL;
 	}
+	dev_set_name(&dev->dev, "iio:device%d", dev->id);
+	INIT_LIST_HEAD(&dev->buffer_list);
 
 	return dev;
 }

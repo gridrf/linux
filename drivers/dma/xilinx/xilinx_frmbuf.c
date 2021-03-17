@@ -1096,7 +1096,7 @@ static void xilinx_frmbuf_start_transfer(struct xilinx_frmbuf_chan *chan)
 				struct xilinx_frmbuf_tx_descriptor,
 				node);
 
-	if (desc->earlycb == EARLY_CALLBACK_LOW_LATENCY) {
+	if (desc->earlycb == EARLY_CALLBACK_START_DESC) {
 		dma_async_tx_callback callback;
 		void *callback_param;
 
@@ -1559,7 +1559,7 @@ static int xilinx_frmbuf_probe(struct platform_device *pdev)
 	/* Initialize the DMA engine */
 	if (xdev->cfg->flags & XILINX_PPC_PROP) {
 		err = of_property_read_u32(node, "xlnx,pixels-per-clock", &ppc);
-		if (err || (ppc != 1 && ppc != 2 && ppc != 4)) {
+		if (err || (ppc != 1 && ppc != 2 && ppc != 4 && ppc != 8)) {
 			dev_err(&pdev->dev, "missing or invalid pixels per clock dts prop\n");
 			return err;
 		}

@@ -1,9 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  Copyright (C) 2014 ARM Limited
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 #include <linux/cpu.h>
@@ -177,6 +174,9 @@ static void __init register_insn_emulation(struct insn_emulation_ops *ops)
 	struct insn_emulation *insn;
 
 	insn = kzalloc(sizeof(*insn), GFP_KERNEL);
+	if (!insn)
+		return;
+
 	insn->ops = ops;
 	insn->min = INSN_UNDEF;
 
@@ -236,6 +236,8 @@ static void __init register_insn_emulation_sysctl(void)
 
 	insns_sysctl = kcalloc(nr_insn_emulated + 1, sizeof(*sysctl),
 			       GFP_KERNEL);
+	if (!insns_sysctl)
+		return;
 
 	raw_spin_lock_irqsave(&insn_emulation_lock, flags);
 	list_for_each_entry(insn, &insn_emulation, node) {
@@ -402,7 +404,7 @@ static int swp_handler(struct pt_regs *regs, u32 instr)
 
 	/* Check access in reasonable access range for both SWP and SWPB */
 	user_ptr = (const void __user *)(unsigned long)(address & ~3);
-	if (!access_ok(VERIFY_WRITE, user_ptr, 4)) {
+	if (!access_ok(user_ptr, 4)) {
 		pr_debug("SWP{B} emulation: access to 0x%08x not allowed!\n",
 			address);
 		goto fault;
@@ -501,8 +503,6 @@ static int cp15barrier_handler(struct pt_regs *regs, u32 instr)
 	}
 
 ret:
-	pr_warn_ratelimited("\"%s\" (%ld) uses deprecated CP15 Barrier instruction at 0x%llx\n",
-			current->comm, (unsigned long)current->pid, regs->pc);
 
 	arm64_skip_faulting_instruction(regs, 4);
 	return 0;
@@ -569,8 +569,6 @@ static int compat_setend_handler(struct pt_regs *regs, u32 big_endian)
 	}
 
 	trace_instruction_emulation(insn, regs->pc);
-	pr_warn_ratelimited("\"%s\" (%ld) uses deprecated setend instruction at 0x%llx\n",
-			current->comm, (unsigned long)current->pid, regs->pc);
 
 	return 0;
 }

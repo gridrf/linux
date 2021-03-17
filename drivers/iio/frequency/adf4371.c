@@ -35,6 +35,10 @@
 #define ADF4371_SDO_ACT_R(x)		FIELD_PREP(ADF4371_SDO_ACT_R_MSK, x)
 #define ADF4371_RESET_CMD		0x81
 
+/* ADF4371_REG12 */
+#define ADF4371_EN_AUTOCAL_MSK		BIT(6)
+#define ADF4371_EN_AUTOCAL(x)		FIELD_PREP(ADF4371_EN_AUTOCAL_MSK, x)
+
 /* ADF4371_REG17 */
 #define ADF4371_FRAC2WORD_L_MSK		GENMASK(7, 1)
 #define ADF4371_FRAC2WORD_L(x)		FIELD_PREP(ADF4371_FRAC2WORD_L_MSK, x)
@@ -48,6 +52,8 @@
 /* ADF4371_REG1A */
 #define ADF4371_MOD2WORD_MSK		GENMASK(5, 0)
 #define ADF4371_MOD2WORD(x)		FIELD_PREP(ADF4371_MOD2WORD_MSK, x)
+#define ADF4371_PHASE_ADJ_MSK		BIT(6)
+#define ADF4371_PHASE_ADJ(x)		FIELD_PREP(ADF4371_PHASE_ADJ_MSK, x)
 
 /* ADF4371_REG1E */
 #define ADF4371_CP_CURRENT_MSK		GENMASK(7, 4)
@@ -76,12 +82,26 @@
 #define ADF4371_MUTE_LD(x)		FIELD_PREP(ADF4371_MUTE_LD_MSK, x)
 
 /* ADF4371_REG32 */
+#define ADF4371_ADC_CTS_CONV_MSK	BIT(4)
+#define ADF4371_ADC_CTS_CONV(x)		FIELD_PREP(ADF4371_ADC_CTS_CONV_MSK, x)
+#define ADF4371_ADC_CONVERSION_MSK	BIT(3)
+#define ADF4371_ADC_CONVERSION(x)	FIELD_PREP(ADF4371_ADC_CONVERSION_MSK, x)
+#define ADF4371_ADC_ENABLE_MSK		BIT(2)
+#define ADF4371_ADC_ENABLE(x)		FIELD_PREP(ADF4371_ADC_ENABLE_MSK, x)
 #define ADF4371_TIMEOUT_MSK		GENMASK(1, 0)
 #define ADF4371_TIMEOUT(x)		FIELD_PREP(ADF4371_TIMEOUT_MSK, x)
+
+/* ADF4371_REG33 */
+#define ADF4371_VCO_FSM_READBACK_MSK	GENMASK(7, 5)
+#define ADF4371_VCO_FSM_READBACK(x)	FIELD_PREP(ADF4371_VCO_FSM_READBACK_MSK, x)
 
 /* ADF4371_REG34 */
 #define ADF4371_VCO_ALC_TOUT_MSK	GENMASK(4, 0)
 #define ADF4371_VCO_ALC_TOUT(x)		FIELD_PREP(ADF4371_VCO_ALC_TOUT_MSK, x)
+
+/* ADF4371_REG73 */
+#define ADF4371_ADC_CLK_DISABLE_MSK	BIT(2)
+#define ADF4371_ADC_CLK_DISABLE(x)	FIELD_PREP(ADF4371_ADC_CLK_DISABLE_MSK, x)
 
 /* Specifications */
 #define ADF4371_MIN_VCO_FREQ		4000000000ULL /* 4000 MHz */
@@ -108,7 +128,7 @@ enum {
 	ADF4371_FREQ,
 	ADF4371_POWER_DOWN,
 	ADF4371_CHANNEL_NAME,
-	ADF4371_MUXOUT_ENABLE
+	ADF4371_MUXOUT_ENABLE,
 };
 
 enum {
@@ -178,7 +198,7 @@ static const struct reg_sequence adf4371_reg_defaults[] = {
 	{ ADF4371_REG(0x22), 0x00 },
 	{ ADF4371_REG(0x23), 0x00 },
 	{ ADF4371_REG(0x24), 0x80 },
-	{ ADF4371_REG(0x25), 0x07 },
+	{ ADF4371_REG(0x25), 0x03 },
 	{ ADF4371_REG(0x27), 0xC5 },
 	{ ADF4371_REG(0x28), 0x83 },
 	{ ADF4371_REG(0x2C), 0x44 },
@@ -199,6 +219,7 @@ static const struct reg_sequence adf4371_reg_defaults[] = {
 	{ ADF4371_REG(0x70), 0x03 },
 	{ ADF4371_REG(0x71), 0x60 },
 	{ ADF4371_REG(0x72), 0x32 },
+	{ ADF4371_REG(0x73), 0x00 },
 };
 
 static const struct regmap_config adf4371_regmap_config = {
@@ -438,6 +459,138 @@ static int adf4371_channel_power_down(struct adf4371_state *st,
 	return regmap_write(st->regmap, reg, readval);
 }
 
+static int adf4371_write_raw(struct iio_dev *indio_dev,
+			struct iio_chan_spec const *chan,
+			int val,
+			int val2,
+			long info)
+{
+	struct adf4371_state *st = iio_priv(indio_dev);
+	u64 val64;
+	int ret;
+
+	switch (info) {
+	case IIO_CHAN_INFO_PHASE:
+		val64 = (u64) val * (1 << 24);
+		do_div(val64, 360000UL);
+
+		st->buf[0] = val64 & 0xFF;
+		st->buf[1] = (val64 >> 8) & 0xFF;
+		st->buf[2] = (val64 >> 16) & 0xFF;
+
+		ret = regmap_update_bits(st->regmap, ADF4371_REG(0x1A),
+					ADF4371_PHASE_ADJ_MSK,
+					ADF4371_PHASE_ADJ(1));
+		if (ret < 0)
+			break;
+
+		ret = regmap_update_bits(st->regmap, ADF4371_REG(0x12),
+					ADF4371_EN_AUTOCAL_MSK,
+					ADF4371_EN_AUTOCAL(0));
+		if (ret < 0)
+			break;
+
+		ret = regmap_write(st->regmap, ADF4371_REG(0x2B), 0x04);
+		if (ret < 0)
+			return ret;
+
+		ret = regmap_bulk_write(st->regmap,
+				ADF4371_REG(0x1B), st->buf, 3);
+		if (ret < 0)
+			return ret;
+
+		ret = regmap_write(st->regmap, ADF4371_REG(0x10), st->integer & 0xFF);
+		if (ret < 0)
+			break;
+
+		ret = regmap_update_bits(st->regmap, ADF4371_REG(0x12),
+					ADF4371_EN_AUTOCAL_MSK,
+					ADF4371_EN_AUTOCAL(1));
+		if (ret < 0)
+			break;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int adf4371_read_raw(struct iio_dev *indio_dev,
+			struct iio_chan_spec const *chan,
+			int *val,
+			int *val2,
+			long info)
+{
+	struct adf4371_state *st = iio_priv(indio_dev);
+	unsigned int readval;
+	u64 val64;
+	int ret;
+
+	switch (info) {
+	case IIO_CHAN_INFO_PHASE:
+		ret = regmap_bulk_read(st->regmap,
+				       ADF4371_REG(0x1B), st->buf, 3);
+		if (ret < 0)
+			return ret;
+
+		val64 = st->buf[0] | st->buf[1] << 8 | st->buf[2] << 16;
+		val64 *= 360000ULL;
+		do_div(val64, 1 << 24);
+
+		*val = val64;
+
+		return IIO_VAL_INT;
+	case IIO_CHAN_INFO_PROCESSED:
+		ret = regmap_update_bits(st->regmap, ADF4371_REG(0x73),
+					ADF4371_ADC_CLK_DISABLE_MSK,
+					ADF4371_ADC_CLK_DISABLE(0));
+		if (ret < 0)
+			break;
+
+		ret = regmap_update_bits(st->regmap, ADF4371_REG(0x32),
+					ADF4371_ADC_ENABLE_MSK,
+					ADF4371_ADC_ENABLE(1));
+		if (ret < 0)
+			break;
+
+		ret = regmap_update_bits(st->regmap, ADF4371_REG(0x32),
+					ADF4371_ADC_CONVERSION_MSK,
+					ADF4371_ADC_CONVERSION(1));
+		if (ret < 0)
+			break;
+
+		udelay(160); /* Wait 16 ADC cycles */
+
+		ret = regmap_update_bits(st->regmap, ADF4371_REG(0x33),
+					ADF4371_VCO_FSM_READBACK_MSK,
+					ADF4371_VCO_FSM_READBACK(5));
+		if (ret < 0)
+			break;
+
+		ret = regmap_read(st->regmap, ADF4371_REG(0x6E), &readval);
+		if (ret < 0)
+			break;
+
+		ret = regmap_update_bits(st->regmap, ADF4371_REG(0x32),
+					ADF4371_ADC_ENABLE_MSK |
+					ADF4371_ADC_CONVERSION_MSK, 0);
+		if (ret < 0)
+			break;
+		ret = regmap_update_bits(st->regmap, ADF4371_REG(0x73),
+					ADF4371_ADC_CLK_DISABLE_MSK,
+					ADF4371_ADC_CLK_DISABLE(1));
+		if (ret < 0)
+			break;
+
+		*val = readval * 1000 - 83500;
+
+		return IIO_VAL_INT;
+	}
+
+	return -EINVAL;
+}
+
 static ssize_t adf4371_read(struct iio_dev *indio_dev,
 			    uintptr_t private,
 			    const struct iio_chan_spec *chan,
@@ -600,9 +753,16 @@ static const struct iio_chan_spec_ext_info adf4371_ext_info[] = {
 		.channel = index, \
 		.ext_info = adf4371_ext_info, \
 		.indexed = 1, \
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_PHASE), \
 	}
 
 static const struct iio_chan_spec adf4371_chan[] = {
+	{
+		.type = IIO_TEMP,
+		.indexed = 1,
+		.channel = 0,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_PROCESSED),
+	},
 	ADF4371_CHANNEL(ADF4371_CH_RF8),
 	ADF4371_CHANNEL(ADF4371_CH_RFAUX8),
 	ADF4371_CHANNEL(ADF4371_CH_RF16),
@@ -635,6 +795,8 @@ static int adf4371_reg_access(struct iio_dev *indio_dev,
 
 static const struct iio_info adf4371_info = {
 	.debugfs_reg_access = &adf4371_reg_access,
+	.read_raw = &adf4371_read_raw,
+	.write_raw = adf4371_write_raw,
 };
 
 static int adf4371_channel_config(struct adf4371_state *st)
@@ -806,6 +968,14 @@ static int adf4371_setup(struct adf4371_state *st)
 		st->fpfd = st->clkin_freq / st->ref_div_factor;
 	} while (st->fpfd > ADF4371_MAX_FREQ_PFD);
 
+	/* Calculate ADC_CLK_DIV */
+	tmp = DIV_ROUND_UP((st->fpfd / 100000) - 2, 4);
+	tmp = clamp(tmp, 0U, 255U);
+
+	ret = regmap_write(st->regmap, ADF4371_REG(0x35), tmp);
+	if (ret < 0)
+		return ret;
+
 	/* Calculate Timeouts */
 	vco_band_div = DIV_ROUND_UP(st->fpfd, 2400000U);
 
@@ -830,7 +1000,7 @@ static int adf4371_setup(struct adf4371_state *st)
 
 	ret = regmap_bulk_write(st->regmap, ADF4371_REG(0x30), st->buf, 5);
 	if (ret < 0)
-		return 0;
+		return ret;
 
 	return adf4371_channel_config(st);
 }
@@ -1011,10 +1181,6 @@ static int adf4371_probe(struct spi_device *spi)
 	struct regmap *regmap;
 	int ret;
 
-	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*st));
-	if (!indio_dev)
-		return -ENOMEM;
-
 	regmap = devm_regmap_init_spi(spi, &adf4371_regmap_config);
 	if (IS_ERR(regmap)) {
 		dev_err(&spi->dev, "Error initializing spi regmap: %ld\n",
@@ -1022,10 +1188,28 @@ static int adf4371_probe(struct spi_device *spi)
 		return PTR_ERR(regmap);
 	}
 
+	/*
+	 * The device comes out of reset with a few power consuming blocks turned on
+	 * this option allows the user to power down the chip in case it's not used in
+	 * a certain configuration
+	 */
+
+	if(device_property_read_bool(&spi->dev, "adi,chip-powerdown-and-exit-enable")) {
+		regmap_write(regmap, ADF4371_REG(0x25), 0); /* Power-Down all Outputs */
+		regmap_write(regmap, ADF4371_REG(0x73), 6); /* Disable ADC Clock, Power-Down N Divider */
+		regmap_write(regmap, ADF4371_REG(0x1E), 4); /* Power-Down */
+
+		return 0;
+	}
+
+	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*st));
+	if (!indio_dev)
+		return -ENOMEM;
+
 	st = iio_priv(indio_dev);
 	spi_set_drvdata(spi, indio_dev);
-	st->regmap = regmap;
 	st->spi = spi;
+	st->regmap = regmap;
 	mutex_init(&st->lock);
 
 	st->chip_info = &adf4371_chip_info[id->driver_data];

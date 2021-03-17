@@ -1,9 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * AD5446 SPI DAC driver
  *
  * Copyright 2010 Analog Devices Inc.
- *
- * Licensed under the GPL-2 or later.
  */
 
 #include <linux/interrupt.h>
@@ -452,6 +451,7 @@ static const struct spi_device_id ad5446_spi_ids[] = {
 	{"ad5512a", ID_AD5512A},
 	{"ad5541a", ID_AD5541A},
 	{"ad5542a", ID_AD5541A}, /* ad5541a and ad5542a are compatible */
+	{"ad5542", ID_AD5541A}, /* ad5541a and ad5542a are compatible */
 	{"ad5543", ID_AD5541A}, /* ad5541a and ad5543 are compatible */
 	{"ad5553", ID_AD5553},
 	{"ad5600", ID_AD5600},
@@ -635,6 +635,6 @@ static void __exit ad5446_exit(void)
 }
 module_exit(ad5446_exit);
 
-MODULE_AUTHOR("Michael Hennerich <hennerich@blackfin.uclinux.org>");
+MODULE_AUTHOR("Michael Hennerich <michael.hennerich@analog.com>");
 MODULE_DESCRIPTION("Analog Devices AD5444/AD5446 DAC");
 MODULE_LICENSE("GPL v2");

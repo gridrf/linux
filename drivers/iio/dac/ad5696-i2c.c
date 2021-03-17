@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0
 /*
  * AD5671R, AD5673R, AD5675R, AD5677R, AD5691R, AD5692R, AD5693,
  * AD5693R, AD5694, AD5694R, AD5695R, AD5696, AD5696R
@@ -62,7 +62,7 @@ static int ad5686_i2c_probe(struct i2c_client *i2c,
 			    const struct i2c_device_id *id)
 {
 	return ad5686_probe(&i2c->dev, id->driver_data, id->name,
-			    ad5686_i2c_write, ad5686_i2c_read);
+			    ad5686_i2c_write, ad5686_i2c_read, i2c->irq);
 }
 
 static int ad5686_i2c_remove(struct i2c_client *i2c)

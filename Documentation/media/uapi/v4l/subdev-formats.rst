@@ -1,4 +1,11 @@
-.. -*- coding: utf-8; mode: rst -*-
+.. Permission is granted to copy, distribute and/or modify this
+.. document under the terms of the GNU Free Documentation License,
+.. Version 1.1 or any later version published by the Free Software
+.. Foundation, with no Invariant Sections, no Front-Cover Texts
+.. and no Back-Cover Texts. A copy of the license is included at
+.. Documentation/media/uapi/fdl-appendix.rst.
+..
+.. TODO: replace it to GFDL-1.1-or-later WITH no-invariant-sections
 
 .. _v4l2-mbus-format:
 
@@ -68,16 +75,24 @@ Media Bus Pixel Codes
 ---------------------
 
 The media bus pixel codes describe image formats as flowing over
-physical busses (both between separate physical components and inside
+physical buses (both between separate physical components and inside
 SoC devices). This should not be confused with the V4L2 pixel formats
 that describe, using four character codes, image formats as stored in
 memory.
 
-While there is a relationship between image formats on busses and image
+While there is a relationship between image formats on buses and image
 formats in memory (a raw Bayer image won't be magically converted to
 JPEG just by storing it to memory), there is no one-to-one
-correspondance between them.
+correspondence between them.
 
+The media bus pixel codes document parallel formats. Should the pixel data be
+transported over a serial bus, the media bus pixel code that describes a
+parallel format that transfers a sample on a single clock cycle is used. For
+instance, both MEDIA_BUS_FMT_BGR888_1X24 and MEDIA_BUS_FMT_BGR888_3X8 are used
+on parallel busses for transferring an 8 bits per sample BGR data, whereas on
+serial busses the data in this format is only referred to using
+MEDIA_BUS_FMT_BGR888_1X24. This is because there is effectively only a single
+way to transport that format on the serial busses.
 
 Packed RGB Formats
 ^^^^^^^^^^^^^^^^^^
@@ -973,6 +988,113 @@ The following tables list existing packed RGB formats.
       - r\ :sub:`2`
       - r\ :sub:`1`
       - r\ :sub:`0`
+    * .. _MEDIA-BUS-FMT-BGR888-3X8:
+
+      - MEDIA_BUS_FMT_BGR888_3X8
+      - 0x101b
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - b\ :sub:`7`
+      - b\ :sub:`6`
+      - b\ :sub:`5`
+      - b\ :sub:`4`
+      - b\ :sub:`3`
+      - b\ :sub:`2`
+      - b\ :sub:`1`
+      - b\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - g\ :sub:`7`
+      - g\ :sub:`6`
+      - g\ :sub:`5`
+      - g\ :sub:`4`
+      - g\ :sub:`3`
+      - g\ :sub:`2`
+      - g\ :sub:`1`
+      - g\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - r\ :sub:`7`
+      - r\ :sub:`6`
+      - r\ :sub:`5`
+      - r\ :sub:`4`
+      - r\ :sub:`3`
+      - r\ :sub:`2`
+      - r\ :sub:`1`
+      - r\ :sub:`0`
     * .. _MEDIA-BUS-FMT-GBR888-1X24:
 
       - MEDIA_BUS_FMT_GBR888_1X24
@@ -1191,6 +1313,113 @@ The following tables list existing packed RGB formats.
       - g\ :sub:`6`
       - g\ :sub:`5`
       - g\ :sub:`4`
+    * .. _MEDIA-BUS-FMT-RGB888-3X8:
+
+      - MEDIA_BUS_FMT_RGB888_3X8
+      - 0x101c
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - r\ :sub:`7`
+      - r\ :sub:`6`
+      - r\ :sub:`5`
+      - r\ :sub:`4`
+      - r\ :sub:`3`
+      - r\ :sub:`2`
+      - r\ :sub:`1`
+      - r\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - g\ :sub:`7`
+      - g\ :sub:`6`
+      - g\ :sub:`5`
+      - g\ :sub:`4`
+      - g\ :sub:`3`
+      - g\ :sub:`2`
+      - g\ :sub:`1`
+      - g\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - b\ :sub:`7`
+      - b\ :sub:`6`
+      - b\ :sub:`5`
+      - b\ :sub:`4`
+      - b\ :sub:`3`
+      - b\ :sub:`2`
+      - b\ :sub:`1`
+      - b\ :sub:`0`
     * .. _MEDIA-BUS-FMT-ARGB888-1X32:
 
       - MEDIA_BUS_FMT_ARGB888_1X32
@@ -1305,7 +1534,7 @@ The following tables list existing packed RGB formats.
     * .. _MEDIA-BUS-FMT-RBG101010-1X30:
 
       - MEDIA_BUS_FMT_RBG101010_1X30
-      - 0x101b
+      - 0x1100
       -
       - 0
       - 0
@@ -1449,7 +1678,7 @@ The following table list existing packed 36bit wide RGB formats.
     * .. _MEDIA-BUS-FMT-RBG121212-1X36:
 
       - MEDIA_BUS_FMT_RBG121212_1X36
-      - 0x101c
+      - 0x1101
       -
       - r\ :sub:`11`
       - r\ :sub:`10`
@@ -1659,7 +1888,7 @@ The following table list existing packed 48bit wide RGB formats.
     * .. _MEDIA-BUS-FMT-RBG161616-1X48:
 
       - MEDIA_BUS_FMT_RBG161616_1X48
-      - 0x101d
+      - 0x1102
       -
       -
       -
@@ -5111,7 +5340,7 @@ the following codes.
     * .. _MEDIA-BUS-FMT-VYYUYY10_4X20:
 
       - MEDIA_BUS_FMT_VYYUYY10_4X20
-      - 0x2031
+      - 0x2101
       -
       -
       -
@@ -7010,7 +7239,7 @@ the following codes.
     * .. _MEDIA-BUS-FMT-UYYVYY12-4X24:
 
       - MEDIA_BUS_FMT_UYYVYY12_4X24
-      - 0x202d
+      - 0x2103
       -
       -
       -
@@ -7152,7 +7381,7 @@ the following codes.
     * .. _MEDIA-BUS-FMT-VYYUYY8-1X24:
 
       - MEDIA_BUS_FMT_VYYUYY8_1X24
-      - 0x202c
+      - 0x2100
       -
       -
       -
@@ -7226,7 +7455,7 @@ the following codes.
     * .. _MEDIA-BUS-FMT-VUY10-1X30:
 
       - MEDIA_BUS_FMT_VUY10_1X30
-      - 0x2032
+      - 0x2102
       -
       -
       -
@@ -7335,7 +7564,7 @@ the following codes.
     * .. _MEDIA-BUS-FMT-Y16-1X16:
 
       - MEDIA_BUS_FMT_Y16_1X16
-      - 0x202d
+      - 0x2105
       -
       -
       -
@@ -7409,7 +7638,7 @@ the following codes.
     * .. _MEDIA-BUS-FMT-UYYVYY16-4X32:
 
       - MEDIA_BUS_FMT_UYYVYY16_4X32
-      - 0x202f
+      - 0x2106
       -
       - u\ :sub:`15`
       - u\ :sub:`14`
@@ -7551,7 +7780,7 @@ the following codes.
     * .. _MEDIA-BUS-FMT-UYVY16-2X32:
 
       - MEDIA_BUS_FMT_UYVY16_2X32
-      - 0x2030
+      - 0x2108
       -
       - u\ :sub:`15`
       - u\ :sub:`14`
@@ -7811,7 +8040,7 @@ The following table list existing packed 36bit wide YUV formats.
     * .. _MEDIA-BUS-FMT-VUY12-1X36:
 
       - MEDIA_BUS_FMT_VUY12_1X36
-      - 0x2033
+      - 0x2104
       -
       - v\ :sub:`11`
       - v\ :sub:`10`
@@ -8022,7 +8251,7 @@ The following table list existing packed 48bit wide YUV formats.
     * .. _MEDIA-BUS-FMT-VUY16-1X48:
 
       - MEDIA_BUS_FMT_VUY16_1X48
-      - 0x2034
+      - 0x2107
       -
       -
       -
@@ -8279,7 +8508,7 @@ The following table lists existing HSV/HSL formats.
     \tiny
     \setlength{\tabcolsep}{2pt}
 
-.. tabularcolumns:: |p{3.0cm}|p{0.60cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|
+.. tabularcolumns:: |p{3.9cm}|p{0.73cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|
 
 .. _v4l2-mbus-pixelcode-hsv:
 
@@ -8389,7 +8618,7 @@ The following table lists existing JPEG compressed formats.
 
 .. _v4l2-mbus-pixelcode-jpeg:
 
-.. tabularcolumns:: |p{5.4cm}|p{1.4cm}|p{10.7cm}|
+.. tabularcolumns:: |p{6.0cm}|p{1.4cm}|p{10.1cm}|
 
 .. flat-table:: JPEG Formats
     :header-rows:  1
@@ -8422,7 +8651,7 @@ formats.
 
 .. _v4l2-mbus-pixelcode-vendor-specific:
 
-.. tabularcolumns:: |p{6.8cm}|p{1.4cm}|p{9.3cm}|
+.. tabularcolumns:: |p{8.0cm}|p{1.4cm}|p{7.7cm}|
 
 .. flat-table:: Vendor and device specific formats
     :header-rows:  1

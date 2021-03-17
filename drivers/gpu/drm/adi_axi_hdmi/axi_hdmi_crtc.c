@@ -13,9 +13,11 @@
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_fourcc.h>
 #include <drm/drm_gem_cma_helper.h>
-#include <drm/drm_plane_helper.h>
 #include <drm/drm_gem_framebuffer_helper.h>
+#include <drm/drm_plane_helper.h>
+#include <drm/drm_vblank.h>
 
 #include "axi_hdmi_drv.h"
 
@@ -172,7 +174,6 @@ static const struct drm_plane_helper_funcs axi_hdmi_plane_helper_funcs = {
 
 static void axi_hdmi_plane_destroy(struct drm_plane *plane)
 {
-	drm_plane_helper_disable(plane, NULL);
 	drm_plane_cleanup(plane);
 }
 

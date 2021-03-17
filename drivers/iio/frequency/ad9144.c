@@ -37,13 +37,13 @@ enum chip_id {
 	CHIPID_AD9154 = AD9144_CHIPID(0x91, 0x54, 0x9),
 };
 
-enum ad9144_sysref_mode {
-	AD9144_SYSREF_ONESHOT,
-	AD9144_SYSREF_CONTINUOUS
+enum ad9144_sync_mode {
+	AD9144_SYNC_ONESHOT,
+	AD9144_SYNC_CONTINUOUS
 };
 
 struct ad9144_sysref_config {
-	enum ad9144_sysref_mode mode;
+	enum ad9144_sync_mode mode;
 	bool capture_falling_edge;
 };
 
@@ -77,8 +77,14 @@ struct ad9144_platform_data {
 	u8 interpolation;
 	unsigned int fcenter_shift;
 	bool spi4wire;
+
 	u8 jesd_link_mode;
 	u8 jesd_subclass;
+
+	unsigned int pll_frequency;
+	bool pll_enable;
+
+	unsigned int sync_mode;
 };
 
 struct ad9144_state {
@@ -659,7 +665,7 @@ static int ad9144_setup(struct ad9144_state *st,
 	struct ad9144_jesd204_link_config *link_config)
 {
 	struct regmap *map = st->map;
-	unsigned int sysref_mode;
+	unsigned int sync_mode;
 	unsigned int phy_mask;
 	unsigned int pd_dac;
 	unsigned int pd_clk;
@@ -785,14 +791,14 @@ static int ad9144_setup(struct ad9144_state *st,
 		regmap_write(map, 0x307, 0x0a);	// receive buffer delay
 	}
 
-	if (link_config->sysref.mode == AD9144_SYSREF_ONESHOT)
-		sysref_mode = 0x1;
+	if (link_config->sysref.mode == AD9144_SYNC_ONESHOT)
+		sync_mode = 0x1;
 	else
-		sysref_mode = 0x2;
+		sync_mode = 0x2;
 
-	regmap_write(map, 0x03a, sysref_mode); // sync-oneshot mode
-	regmap_write(map, 0x03a, 0x80 | sysref_mode); // sync-enable
-	regmap_write(map, 0x03a, 0xc0 | sysref_mode); // sysref-armed
+	regmap_write(map, REG_SYNC_CTRL, sync_mode);
+	regmap_write(map, REG_SYNC_CTRL, sync_mode | SYNCENABLE);
+	regmap_write(map, REG_SYNC_CTRL, sync_mode | SYNCENABLE | SYNCARM);
 
 	ad9144_setup_samplerate(st);
 
@@ -803,22 +809,31 @@ static int ad9144_setup(struct ad9144_state *st,
 
 static int ad9144_get_clks(struct cf_axi_converter *conv)
 {
-	struct clk *clk;
-	int i, ret;
+	int ret;
 
-	for (i = 0; i < 3; i++) {
-		clk = devm_clk_get(&conv->spi->dev, clk_names[i]);
-		if (IS_ERR(clk))
-			return PTR_ERR(clk);
+	conv->clk[CLK_DATA] = devm_clk_get(&conv->spi->dev, clk_names[CLK_DATA]);
+	if (IS_ERR(conv->clk[CLK_DATA]))
+		return PTR_ERR(conv->clk[CLK_DATA]);
 
-		if (i > 0) {
-			ret = clk_prepare_enable(clk);
-			if (ret < 0)
-				return ret;
+	conv->clk[CLK_DAC] = devm_clk_get(&conv->spi->dev, clk_names[CLK_DAC]);
+	if (IS_ERR(conv->clk[CLK_DAC]))
+		return PTR_ERR(conv->clk[CLK_DAC]);
+
+	ret = clk_prepare_enable(conv->clk[CLK_DAC]);
+	if (ret < 0)
+		return ret;
+
+	conv->clk[CLK_REF] = devm_clk_get(&conv->spi->dev, clk_names[CLK_REF]);
+	if (IS_ERR(conv->clk[CLK_REF])) {
+		if (PTR_ERR(conv->clk[CLK_REF]) == -ENOENT) {
+			conv->clk[CLK_REF] = NULL;
+			return 0;
+		} else {
+			return PTR_ERR(conv->clk[CLK_REF]);
 		}
-		conv->clk[i] = clk;
 	}
-	return 0;
+
+	return  clk_prepare_enable(conv->clk[CLK_REF]);
 }
 
 static unsigned long long ad9144_get_data_clk(struct cf_axi_converter *conv)
@@ -1062,6 +1077,23 @@ static struct ad9144_platform_data *ad9144_parse_dt(struct device *dev)
 	tmp = 1;
 	of_property_read_u32(np, "adi,jesd-subclass", &tmp);
 	pdata->jesd_subclass = (tmp > 1 ? 1 : tmp);
+
+	pdata->pll_enable = of_property_read_bool(np, "adi,pll-enable");
+
+	tmp = 0;
+	of_property_read_u32(np, "adi,pll-frequency", &tmp);
+	pdata->pll_frequency = tmp;
+
+	if (pdata->pll_enable && !pdata->pll_frequency)
+		dev_err(dev, "DAC pll enabled but missing 'adi,pll-frequency'\n");
+
+	tmp = AD9144_SYNC_ONESHOT;
+	of_property_read_u32(np, "adi,sync-mode", &tmp);
+	pdata->sync_mode = tmp;
+
+	if (pdata->sync_mode == AD9144_SYNC_CONTINUOUS && !pdata->jesd_subclass)
+		dev_warn(dev, "Continuous sync mode can only be used in Subclass 1\n");
+
 	/*
 	 * DO NOT copy this. It is as wrong as it gets, we have to do it to
 	 * preserve backwards compatibility with earlier versions of the driver
@@ -1146,6 +1178,9 @@ static int ad9144_probe(struct spi_device *spi)
 	st->interpolation = pdata->interpolation;
 	st->fcenter_shift = pdata->fcenter_shift;
 	conv = &st->conv;
+
+	st->pll_enable = pdata->pll_enable;
+	st->pll_frequency = pdata->pll_frequency;
 
 	switch (st->id) {
 	case CHIPID_AD9144:
@@ -1255,12 +1290,14 @@ static int ad9144_probe(struct spi_device *spi)
 	link_config.high_density = ad9144_jesd_modes[pdata->jesd_link_mode].hd;
 	link_config.scrambling = true;
 	link_config.subclass = pdata->jesd_subclass;
-	link_config.sysref.mode = AD9144_SYSREF_ONESHOT;
+	link_config.sysref.mode = pdata->sync_mode;
 
 	for (i = 0; i < 8; i++)
 		link_config.lane_mux[i] = pdata->xbar_lane_sel[i];
 
 	lane_rate_kHz = ad9144_get_lane_rate(st, ad9144_get_sample_rate(st));
+	dev_dbg(&spi->dev, "Setting lane rate %ld kHz\n", lane_rate_kHz);
+
 	ret = clk_set_rate(conv->clk[0], lane_rate_kHz);
 	if (ret < 0) {
 		dev_err(&spi->dev, "Failed to set lane rate to %ld kHz: %d\n",

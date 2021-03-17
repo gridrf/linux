@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /**
  * \file talise.c
  * \brief Contains top level functions to support initialization and ctrol of
@@ -1776,6 +1777,7 @@ uint32_t TALISE_calculateDigitalClocks(taliseDevice_t *device, taliseDigClocks_t
     uint32_t localHsDigClk4or5_Hz = 0;
 
 #if TALISE_VERBOSE
+    adiHalErr_t halError = ADIHAL_OK;
     halError = talWriteToLog(device->devHalInfo, ADIHAL_LOG_MSG, TAL_ERR_OK, "TALISE_calculateDigitalClocks()\n");
     retVal = talApiErrHandler(device, TAL_ERRHDL_HAL_LOG, halError, retVal, TALACT_WARN_RESET_LOG);
 #endif
@@ -3187,6 +3189,7 @@ uint32_t TALISE_getApiVersion (taliseDevice_t *device, uint32_t *siVer, uint32_t
     talRecoveryActions_t retVal = TALACT_NO_ACTION;
 
 #if TALISE_VERBOSE
+    adiHalErr_t halError = ADIHAL_OK;
     halError = talWriteToLog(device->devHalInfo, ADIHAL_LOG_MSG, TAL_ERR_OK, "TALISE_getApiVersion()\n");
     retVal = talApiErrHandler(device, TAL_ERRHDL_HAL_LOG, halError, retVal, TALACT_WARN_RESET_LOG);
 #endif

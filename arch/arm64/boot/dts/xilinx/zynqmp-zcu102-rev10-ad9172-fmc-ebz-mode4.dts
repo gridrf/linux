@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * dts file for AD9172-FMC-EBZ on Xilinx ZynqMP ZCU102 Rev 1.0
+ * Analog Devices AD917x-FMC-EBZ
+ * https://wiki.analog.com/resources/eval/dpg/ad917x-fmc-ebz
+ * https://wiki.analog.com/resources/eval/dpg/eval-ad9172
+ *
+ * hdl_project: <dac_fmc_ebz/zcu102>
+ * board_revision: <>
  *
  * JESD Link Mode 4 Example: M4, L4, S1, F2,  NP'16, Interpolation: 4*8
  *
- * Copyright (C) 2018 Analog Devices Inc.
+ * Copyright (C) 2018-2020 Analog Devices Inc.
  */
 
 #include "zynqmp-zcu102-rev10-ad9172-fmc-ebz.dts"
+#include <dt-bindings/jesd204/adxcvr.h>
 
 &axi_ad9172_jesd {
 	adi,octets-per-frame = <2>;
@@ -34,5 +40,5 @@
 
 &axi_ad9172_adxcvr {
 
-	adi,out-clk-select = <4>;
+	adi,out-clk-select = <XCVR_REFCLK_DIV2>;
 };

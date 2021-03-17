@@ -90,12 +90,6 @@ static void axi_hdmi_rx_write(struct axi_hdmi_rx *axi_hdmi_rx,
 	writel(val, axi_hdmi_rx->base + reg);
 }
 
-static unsigned int axi_hdmi_rx_read(struct axi_hdmi_rx *axi_hdmi_rx,
-	unsigned int reg)
-{
-	return readl(axi_hdmi_rx->base + reg);
-}
-
 static struct axi_hdmi_rx *to_axi_hdmi_rx(struct v4l2_device *v4l2_dev)
 {
 	return container_of(v4l2_dev, struct axi_hdmi_rx, v4l2_dev);
@@ -293,6 +287,12 @@ static const struct vb2_ops axi_hdmi_rx_qops = {
 };
 
 #ifdef CONFIG_VIDEO_ADV_DEBUG
+
+static unsigned int axi_hdmi_rx_read(struct axi_hdmi_rx *axi_hdmi_rx,
+	unsigned int reg)
+{
+	return readl(axi_hdmi_rx->base + reg);
+}
 
 static int axi_hdmi_rx_g_register(struct file *file, void *priv_fh,
 	struct v4l2_dbg_register *reg)
@@ -748,6 +748,7 @@ static int axi_hdmi_rx_nodes_register(struct axi_hdmi_rx *hdmi_rx)
 		 "%s", hdmi_rx->v4l2_dev.name);
 	vdev->v4l2_dev = &hdmi_rx->v4l2_dev;
 	vdev->fops = &axi_hdmi_rx_fops;
+	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
 	vdev->release = video_device_release_empty;
 	vdev->ctrl_handler = s->subdev->ctrl_handler;
 	vdev->lock = &s->lock;
@@ -868,7 +869,7 @@ static int axi_hdmi_rx_probe(struct platform_device *pdev)
 	struct device_node *ep_node;
 	struct axi_hdmi_rx *hdmi_rx;
 	struct resource *res;
-	struct v4l2_fwnode_endpoint bus_cfg;
+	struct v4l2_fwnode_endpoint bus_cfg = { .bus_type = V4L2_MBUS_UNKNOWN };
 	int ret;
 
 	hdmi_rx = devm_kzalloc(&pdev->dev, sizeof(*hdmi_rx), GFP_KERNEL);
@@ -924,9 +925,12 @@ static int axi_hdmi_rx_probe(struct platform_device *pdev)
 	hdmi_rx->asd.match_type = V4L2_ASYNC_MATCH_FWNODE;
 	hdmi_rx->asd.match.fwnode = of_fwnode_handle(of_graph_get_remote_port_parent(ep_node));
 
-	hdmi_rx->asds[0] = &hdmi_rx->asd;
-	hdmi_rx->notifier.subdevs = hdmi_rx->asds;
-	hdmi_rx->notifier.num_subdevs = ARRAY_SIZE(hdmi_rx->asds);
+	v4l2_async_notifier_init(&hdmi_rx->notifier);
+	ret = v4l2_async_notifier_add_subdev(&hdmi_rx->notifier,
+					     &hdmi_rx->asd);
+	if (ret < 0)
+		goto err_device_unregister;
+
 	hdmi_rx->notifier.ops = &axi_hdmi_rx_async_ops;
 
 	ret = v4l2_async_notifier_register(&hdmi_rx->v4l2_dev,
@@ -979,3 +983,6 @@ static struct platform_driver axi_hdmi_rx_driver = {
 	.remove = axi_hdmi_rx_remove,
 };
 module_platform_driver(axi_hdmi_rx_driver);
+
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("ADI AXI HDMI RX driver");

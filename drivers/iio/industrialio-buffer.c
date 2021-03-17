@@ -1,13 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /* The industrial I/O core
  *
  * Copyright (c) 2008 Jonathan Cameron
  *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 as published by
- * the Free Software Foundation.
- *
  * Handling of buffer allocation / resizing.
- *
  *
  * Things to look at here.
  * - Better memory allocation techniques?
@@ -247,10 +243,12 @@ __poll_t iio_buffer_poll(struct file *filp,
  */
 void iio_buffer_wakeup_poll(struct iio_dev *indio_dev)
 {
-	if (!indio_dev->buffer)
+	struct iio_buffer *buffer = indio_dev->buffer;
+
+	if (!buffer)
 		return;
 
-	wake_up(&indio_dev->buffer->pollq);
+	wake_up(&buffer->pollq);
 }
 
 void iio_buffer_init(struct iio_buffer *buffer)
@@ -348,10 +346,11 @@ static ssize_t iio_scan_el_show(struct device *dev,
 {
 	int ret;
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
+	struct iio_buffer *buffer = indio_dev->buffer;
 
 	/* Ensure ret is 0 or 1. */
 	ret = !!test_bit(to_iio_dev_attr(attr)->address,
-		       indio_dev->buffer->channel_mask);
+		       buffer->channel_mask);
 
 	return sprintf(buf, "%d\n", ret);
 }
@@ -479,7 +478,7 @@ static ssize_t iio_scan_el_store(struct device *dev,
 	if (ret < 0)
 		return ret;
 	mutex_lock(&indio_dev->mlock);
-	if (iio_buffer_is_active(indio_dev->buffer)) {
+	if (iio_buffer_is_active(buffer)) {
 		ret = -EBUSY;
 		goto error_ret;
 	}
@@ -508,7 +507,9 @@ static ssize_t iio_scan_el_ts_show(struct device *dev,
 				   char *buf)
 {
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
-	return sprintf(buf, "%d\n", indio_dev->buffer->scan_timestamp);
+	struct iio_buffer *buffer = indio_dev->buffer;
+
+	return sprintf(buf, "%d\n", buffer->scan_timestamp);
 }
 
 static ssize_t iio_scan_el_ts_store(struct device *dev,
@@ -518,6 +519,7 @@ static ssize_t iio_scan_el_ts_store(struct device *dev,
 {
 	int ret;
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
+	struct iio_buffer *buffer = indio_dev->buffer;
 	bool state;
 
 	ret = strtobool(buf, &state);
@@ -525,11 +527,11 @@ static ssize_t iio_scan_el_ts_store(struct device *dev,
 		return ret;
 
 	mutex_lock(&indio_dev->mlock);
-	if (iio_buffer_is_active(indio_dev->buffer)) {
+	if (iio_buffer_is_active(buffer)) {
 		ret = -EBUSY;
 		goto error_ret;
 	}
-	indio_dev->buffer->scan_timestamp = state;
+	buffer->scan_timestamp = state;
 error_ret:
 	mutex_unlock(&indio_dev->mlock);
 
@@ -537,11 +539,11 @@ error_ret:
 }
 
 static int iio_buffer_add_channel_sysfs(struct iio_dev *indio_dev,
+					struct iio_buffer *buffer,
 					const struct iio_chan_spec *chan,
 					unsigned int address)
 {
 	int ret, attrcount = 0;
-	struct iio_buffer *buffer = indio_dev->buffer;
 
 	ret = __iio_add_chan_devattr("index",
 				     chan,
@@ -617,7 +619,7 @@ static ssize_t iio_buffer_write_length(struct device *dev,
 		return len;
 
 	mutex_lock(&indio_dev->mlock);
-	if (iio_buffer_is_active(indio_dev->buffer)) {
+	if (iio_buffer_is_active(buffer)) {
 		ret = -EBUSY;
 	} else {
 		buffer->access->set_length(buffer, val);
@@ -638,7 +640,9 @@ static ssize_t iio_buffer_show_enable(struct device *dev,
 				      char *buf)
 {
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
-	return sprintf(buf, "%d\n", iio_buffer_is_active(indio_dev->buffer));
+	struct iio_buffer *buffer = indio_dev->buffer;
+
+	return sprintf(buf, "%d\n", iio_buffer_is_active(buffer));
 }
 
 static unsigned int iio_storage_bytes_for_si(struct iio_dev *indio_dev,
@@ -1058,9 +1062,12 @@ static int iio_enable_buffers(struct iio_dev *indio_dev,
 			goto err_disable_buffers;
 	}
 
-	ret = iio_trigger_attach_poll_func(indio_dev);
-	if (ret)
-		goto err_disable_buffers;
+	if (indio_dev->currentmode == INDIO_BUFFER_TRIGGERED) {
+		ret = iio_trigger_attach_poll_func(indio_dev->trig,
+						   indio_dev->pollfunc);
+		if (ret)
+			goto err_disable_buffers;
+	}
 
 	if (indio_dev->setup_ops->postenable) {
 		ret = indio_dev->setup_ops->postenable(indio_dev);
@@ -1074,7 +1081,10 @@ static int iio_enable_buffers(struct iio_dev *indio_dev,
 	return 0;
 
 err_detach_pollfunc:
-	iio_trigger_detach_poll_func(indio_dev);
+	if (indio_dev->currentmode == INDIO_BUFFER_TRIGGERED) {
+		iio_trigger_detach_poll_func(indio_dev->trig,
+					     indio_dev->pollfunc);
+	}
 err_disable_buffers:
 	list_for_each_entry_continue_reverse(buffer, &indio_dev->buffer_list,
 					     buffer_list)
@@ -1112,13 +1122,16 @@ static int iio_disable_buffers(struct iio_dev *indio_dev)
 			ret = ret2;
 	}
 
+	if (indio_dev->currentmode == INDIO_BUFFER_TRIGGERED) {
+		iio_trigger_detach_poll_func(indio_dev->trig,
+					     indio_dev->pollfunc);
+	}
+
 	list_for_each_entry(buffer, &indio_dev->buffer_list, buffer_list) {
 		ret2 = iio_buffer_disable(buffer, indio_dev);
 		if (ret2 && !ret)
 			ret = ret2;
 	}
-
-	iio_trigger_detach_poll_func(indio_dev);
 
 	if (indio_dev->setup_ops->postdisable) {
 		ret2 = indio_dev->setup_ops->postdisable(indio_dev);
@@ -1243,6 +1256,7 @@ static ssize_t iio_buffer_store_enable(struct device *dev,
 	int ret;
 	bool requested_state;
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
+	struct iio_buffer *buffer = indio_dev->buffer;
 	bool inlist;
 
 	ret = strtobool(buf, &requested_state);
@@ -1252,17 +1266,15 @@ static ssize_t iio_buffer_store_enable(struct device *dev,
 	mutex_lock(&indio_dev->mlock);
 
 	/* Find out if it is in the list */
-	inlist = iio_buffer_is_active(indio_dev->buffer);
+	inlist = iio_buffer_is_active(buffer);
 	/* Already in desired state */
 	if (inlist == requested_state)
 		goto done;
 
 	if (requested_state)
-		ret = __iio_update_buffers(indio_dev,
-					 indio_dev->buffer, NULL);
+		ret = __iio_update_buffers(indio_dev, buffer, NULL);
 	else
-		ret = __iio_update_buffers(indio_dev,
-					 NULL, indio_dev->buffer);
+		ret = __iio_update_buffers(indio_dev, NULL, buffer);
 
 done:
 	mutex_unlock(&indio_dev->mlock);
@@ -1304,7 +1316,7 @@ static ssize_t iio_buffer_store_watermark(struct device *dev,
 		goto out;
 	}
 
-	if (iio_buffer_is_active(indio_dev->buffer)) {
+	if (iio_buffer_is_active(buffer)) {
 		ret = -EBUSY;
 		goto out;
 	}
@@ -1321,11 +1333,9 @@ static ssize_t iio_dma_show_data_available(struct device *dev,
 						char *buf)
 {
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
-	size_t bytes;
+	struct iio_buffer *buffer = indio_dev->buffer;
 
-	bytes = iio_buffer_data_available(indio_dev->buffer);
-
-	return sprintf(buf, "%zu\n", bytes);
+	return sprintf(buf, "%zu\n", iio_buffer_data_available(buffer));
 }
 
 static DEVICE_ATTR(length, S_IRUGO | S_IWUSR, iio_buffer_read_length,
@@ -1406,7 +1416,7 @@ int iio_buffer_alloc_sysfs_and_mask(struct iio_dev *indio_dev)
 			if (channels[i].scan_index < 0)
 				continue;
 
-			ret = iio_buffer_add_channel_sysfs(indio_dev,
+			ret = iio_buffer_add_channel_sysfs(indio_dev, buffer,
 							 &channels[i], i);
 			if (ret < 0)
 				goto error_cleanup_dynamic;
@@ -1442,20 +1452,22 @@ error_free_scan_mask:
 	iio_buffer_free_scanmask(buffer);
 error_cleanup_dynamic:
 	iio_free_chan_devattr_list(&buffer->scan_el_dev_attr_list);
-	kfree(indio_dev->buffer->buffer_group.attrs);
+	kfree(buffer->buffer_group.attrs);
 
 	return ret;
 }
 
 void iio_buffer_free_sysfs_and_mask(struct iio_dev *indio_dev)
 {
-	if (!indio_dev->buffer)
+	struct iio_buffer *buffer = indio_dev->buffer;
+
+	if (!buffer)
 		return;
 
-	iio_buffer_free_scanmask(indio_dev->buffer);
-	kfree(indio_dev->buffer->buffer_group.attrs);
-	kfree(indio_dev->buffer->scan_el_group.attrs);
-	iio_free_chan_devattr_list(&indio_dev->buffer->scan_el_dev_attr_list);
+	iio_buffer_free_scanmask(buffer);
+	kfree(buffer->buffer_group.attrs);
+	kfree(buffer->scan_el_group.attrs);
+	iio_free_chan_devattr_list(&buffer->scan_el_dev_attr_list);
 }
 
 /**

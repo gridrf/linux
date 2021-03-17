@@ -1,13 +1,17 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * dts file for FMCDAQ3 on Xilinx ZynqMP ZCU102 Rev 1.0
+ * Analog Devices AD-FMCDAQ3-EBZ
+ * https://wiki.analog.com/resources/eval/user-guides/ad-fmcdaq3-ebz
  *
- * Copyright (C) 2018 Analog Devices Inc.
+ * hdl_project: <daq3/zcu102>
+ * board_revision: <>
  *
- * Licensed under the GPL-2.
+ * Copyright (C) 2015-2019 Analog Devices Inc.
  */
 
 #include "zynqmp-zcu102-rev1.0.dts"
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/jesd204/adxcvr.h>
 
 &i2c1 {
 	i2c-mux@75 {
@@ -119,10 +123,9 @@
 			clocks = <&clk0_ad9528 9>;
 			clock-names = "conv";
 
-			adi,sys-clk-select = <0>;
-			adi,out-clk-select = <4>;
+			adi,sys-clk-select = <XCVR_CPLL>;
+			adi,out-clk-select = <XCVR_REFCLK_DIV2>;
 			adi,use-lpm-enable;
-			adi,use-cpll-enable;
 
 			#clock-cells = <1>;
 			clock-output-names = "adc_gt_clk", "rx_out_clk";
@@ -154,8 +157,8 @@
 			clocks = <&clk0_ad9528 4>;
 			clock-names = "conv";
 
-			adi,sys-clk-select = <3>;
-			adi,out-clk-select = <4>;
+			adi,sys-clk-select = <XCVR_QPLL>;
+			adi,out-clk-select = <XCVR_REFCLK_DIV2>;
 			adi,use-lpm-enable;
 
 			#clock-cells = <1>;

@@ -9,7 +9,7 @@
  */
 
 /*!
- * @addtogroup __AD9081_ADC_API__
+ * @addtogroup AD9081_ADC_API
  * @{
  */
 
@@ -760,6 +760,30 @@ int32_t adi_ad9081_adc_ddc_coarse_reset_set(adi_ad9081_device_t *device,
 	return API_CMS_ERROR_OK;
 }
 
+int32_t adi_ad9081_adc_ddc_coarse_sync_next_set(adi_ad9081_device_t *device,
+						uint8_t cddcs, uint8_t val)
+{
+	int32_t err;
+	uint8_t i, cddc;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+
+	for (i = 0; i < 4; i++) {
+		cddc = cddcs & (AD9081_ADC_CDDC_0 << i);
+		if (cddc > 0) {
+			err = adi_ad9081_adc_ddc_coarse_select_set(device,
+								   cddc);
+			AD9081_ERROR_RETURN(err);
+			err = adi_ad9081_hal_bf_set(
+				device, REG_COARSE_DDC_SYNC_CTRL_ADDR,
+				BF_COARSE_DDC_SYNC_NEXT_INFO, val);
+			AD9081_ERROR_RETURN(err);
+		}
+	}
+
+	return API_CMS_ERROR_OK;
+}
+
 int32_t adi_ad9081_adc_ddc_coarse_sync_enable_set(adi_ad9081_device_t *device,
 						  uint8_t cddcs, uint8_t enable)
 {
@@ -1093,12 +1117,35 @@ int32_t adi_ad9081_adc_ddc_coarse_nco_set(adi_ad9081_device_t *device,
 	return API_CMS_ERROR_OK;
 }
 
+#if AD9081_USE_FLOATING_TYPE > 0
+int32_t adi_ad9081_adc_ddc_coarse_nco_set_f(adi_ad9081_device_t *device,
+					    uint8_t cddcs, double cddc_shift_hz)
+{
+	int32_t err;
+	uint64_t ftw, a, b;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+
+	err = adi_ad9081_hal_calc_nco_ftw_f(
+		device, (double)device->dev_info.adc_freq_hz, cddc_shift_hz,
+		&ftw, &a, &b);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_ddc_coarse_nco_ftw_set(device, cddcs, ftw, a, b);
+	AD9081_ERROR_RETURN(err);
+
+	return API_CMS_ERROR_OK;
+}
+#endif
+
 int32_t adi_ad9081_adc_ddc_coarse_nco_ftw_set(adi_ad9081_device_t *device,
 					      uint8_t cddcs, uint64_t ftw,
 					      uint64_t modulus_a,
 					      uint64_t modulus_b)
 {
 	int32_t err;
+#if AD9081_USE_SPI_BURST_MODE > 0
+	uint8_t in_data[8];
+#endif
 	AD9081_NULL_POINTER_RETURN(device);
 	AD9081_LOG_FUNC();
 	AD9081_INVALID_PARAM_RETURN((ftw >> 48) > 0);
@@ -1107,6 +1154,44 @@ int32_t adi_ad9081_adc_ddc_coarse_nco_ftw_set(adi_ad9081_device_t *device,
 
 	err = adi_ad9081_adc_ddc_coarse_select_set(device, cddcs);
 	AD9081_ERROR_RETURN(err);
+#if AD9081_USE_SPI_BURST_MODE > 0
+	in_data[0] = (REG_COARSE_DDC_PHASE_INC0_ADDR >> 8) & 0x3F;
+	in_data[1] = (REG_COARSE_DDC_PHASE_INC0_ADDR >> 0) & 0xFF;
+	in_data[2] = (uint8_t)((ftw >> 0) & 0xFF);
+	in_data[3] = (uint8_t)((ftw >> 8) & 0xFF);
+	in_data[4] = (uint8_t)((ftw >> 16) & 0xFF);
+	in_data[5] = (uint8_t)((ftw >> 24) & 0xFF);
+	in_data[6] = (uint8_t)((ftw >> 32) & 0xFF);
+	in_data[7] = (uint8_t)((ftw >> 40) & 0xFF);
+	if (API_CMS_ERROR_OK !=
+	    device->hal_info.spi_xfer(device->hal_info.user_data, in_data, NULL,
+				      0x8))
+		return API_CMS_ERROR_SPI_XFER;
+	in_data[0] = (REG_COARSE_DDC_PHASE_INC_FRAC_A0_ADDR >> 8) & 0x3F;
+	in_data[1] = (REG_COARSE_DDC_PHASE_INC_FRAC_A0_ADDR >> 0) & 0xFF;
+	in_data[2] = (uint8_t)((modulus_a >> 0) & 0xFF);
+	in_data[3] = (uint8_t)((modulus_a >> 8) & 0xFF);
+	in_data[4] = (uint8_t)((modulus_a >> 16) & 0xFF);
+	in_data[5] = (uint8_t)((modulus_a >> 24) & 0xFF);
+	in_data[6] = (uint8_t)((modulus_a >> 32) & 0xFF);
+	in_data[7] = (uint8_t)((modulus_a >> 40) & 0xFF);
+	if (API_CMS_ERROR_OK !=
+	    device->hal_info.spi_xfer(device->hal_info.user_data, in_data, NULL,
+				      0x8))
+		return API_CMS_ERROR_SPI_XFER;
+	in_data[0] = (REG_COARSE_DDC_PHASE_INC_FRAC_B0_ADDR >> 8) & 0x3F;
+	in_data[1] = (REG_COARSE_DDC_PHASE_INC_FRAC_B0_ADDR >> 0) & 0xFF;
+	in_data[2] = (uint8_t)((modulus_b >> 0) & 0xFF);
+	in_data[3] = (uint8_t)((modulus_b >> 8) & 0xFF);
+	in_data[4] = (uint8_t)((modulus_b >> 16) & 0xFF);
+	in_data[5] = (uint8_t)((modulus_b >> 24) & 0xFF);
+	in_data[6] = (uint8_t)((modulus_b >> 32) & 0xFF);
+	in_data[7] = (uint8_t)((modulus_b >> 40) & 0xFF);
+	if (API_CMS_ERROR_OK !=
+	    device->hal_info.spi_xfer(device->hal_info.user_data, in_data, NULL,
+				      0x8))
+		return API_CMS_ERROR_SPI_XFER;
+#else
 	err = adi_ad9081_hal_bf_set(device, REG_COARSE_DDC_PHASE_INC0_ADDR,
 				    0x3000, ftw);
 	AD9081_ERROR_RETURN(err);
@@ -1118,6 +1203,7 @@ int32_t adi_ad9081_adc_ddc_coarse_nco_ftw_set(adi_ad9081_device_t *device,
 				    REG_COARSE_DDC_PHASE_INC_FRAC_B0_ADDR,
 				    0x3000, modulus_b);
 	AD9081_ERROR_RETURN(err);
+#endif
 
 	/* ad9081api-536 */
 	if ((cddcs & AD9081_ADC_CDDC_0) > 0) {
@@ -1172,14 +1258,32 @@ adi_ad9081_adc_ddc_coarse_nco_phase_offset_set(adi_ad9081_device_t *device,
 					       uint8_t cddcs, uint64_t offset)
 {
 	int32_t err;
+#if AD9081_USE_SPI_BURST_MODE > 0
+	uint8_t in_data[8];
+#endif
 	AD9081_NULL_POINTER_RETURN(device);
 	AD9081_LOG_FUNC();
 
 	err = adi_ad9081_adc_ddc_coarse_select_set(device, cddcs);
 	AD9081_ERROR_RETURN(err);
+#if AD9081_USE_SPI_BURST_MODE > 0
+	in_data[0] = (REG_COARSE_DDC_PHASE_OFFSET0_ADDR >> 8) & 0x3F;
+	in_data[1] = (REG_COARSE_DDC_PHASE_OFFSET0_ADDR >> 0) & 0xFF;
+	in_data[2] = (uint8_t)((offset >> 0) & 0xFF);
+	in_data[3] = (uint8_t)((offset >> 8) & 0xFF);
+	in_data[4] = (uint8_t)((offset >> 16) & 0xFF);
+	in_data[5] = (uint8_t)((offset >> 24) & 0xFF);
+	in_data[6] = (uint8_t)((offset >> 32) & 0xFF);
+	in_data[7] = (uint8_t)((offset >> 40) & 0xFF);
+	if (API_CMS_ERROR_OK !=
+	    device->hal_info.spi_xfer(device->hal_info.user_data, in_data, NULL,
+				      0x8))
+		return API_CMS_ERROR_SPI_XFER;
+#else
 	err = adi_ad9081_hal_bf_set(device, REG_COARSE_DDC_PHASE_OFFSET0_ADDR,
 				    0x3000, offset);
 	AD9081_ERROR_RETURN(err);
+#endif
 
 	return API_CMS_ERROR_OK;
 }
@@ -1346,6 +1450,30 @@ int32_t adi_ad9081_adc_ddc_fine_reset_set(adi_ad9081_device_t *device,
 						    REG_FINE_DDC_SYNC_CTRL_ADDR,
 						    BF_FINE_DDC_SOFT_RESET_INFO,
 						    0);
+			AD9081_ERROR_RETURN(err);
+		}
+	}
+
+	return API_CMS_ERROR_OK;
+}
+
+int32_t adi_ad9081_adc_ddc_fine_sync_next_set(adi_ad9081_device_t *device,
+					      uint8_t fddcs, uint8_t val)
+{
+	int32_t err;
+	uint8_t i, fddc;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+
+	for (i = 0; i < 8; i++) {
+		fddc = fddcs & (AD9081_ADC_FDDC_0 << i);
+		if (fddc > 0) {
+			err = adi_ad9081_adc_ddc_fine_select_set(device, fddc);
+			AD9081_ERROR_RETURN(err);
+			err = adi_ad9081_hal_bf_set(device,
+						    REG_FINE_DDC_SYNC_CTRL_ADDR,
+						    BF_FINE_DDC_SYNC_NEXT_INFO,
+						    val);
 			AD9081_ERROR_RETURN(err);
 		}
 	}
@@ -1723,12 +1851,65 @@ int32_t adi_ad9081_adc_ddc_fine_nco_set(adi_ad9081_device_t *device,
 	return API_CMS_ERROR_OK;
 }
 
+#if AD9081_USE_FLOATING_TYPE > 0
+int32_t adi_ad9081_adc_ddc_fine_nco_set_f(adi_ad9081_device_t *device,
+					  uint8_t fddcs, double fddc_shift_hz)
+{
+	int32_t err;
+	uint8_t i, fddc, cddc, cc2r_en, cddc_dcm;
+	uint64_t ftw, a, b;
+	double adc_freq_hz;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+
+	for (i = 0; i < 8; i++) {
+		fddc = fddcs & (AD9081_ADC_FDDC_0 << i);
+		if (fddc > 0) {
+			err = adi_ad9081_adc_xbar_find_cddc(device, fddc,
+							    &cddc);
+			AD9081_ERROR_RETURN(err);
+			err = adi_ad9081_adc_ddc_coarse_select_set(device,
+								   cddc);
+			AD9081_ERROR_RETURN(err);
+			err = adi_ad9081_hal_bf_get(device,
+						    REG_COARSE_DEC_CTRL_ADDR,
+						    BF_COARSE_DEC_SEL_INFO,
+						    &cddc_dcm, 1);
+			AD9081_ERROR_RETURN(err);
+			err = adi_ad9081_hal_bf_get(device,
+						    REG_COARSE_DEC_CTRL_ADDR,
+						    BF_COARSE_C2R_EN_INFO,
+						    &cc2r_en, 1);
+			AD9081_ERROR_RETURN(err);
+			cddc_dcm =
+				adi_ad9081_adc_ddc_coarse_dcm_decode(cddc_dcm);
+			adc_freq_hz = (double)device->dev_info.adc_freq_hz;
+			adc_freq_hz = adc_freq_hz / cddc_dcm;
+			adc_freq_hz =
+				(cc2r_en > 0) ? (adc_freq_hz * 2) : adc_freq_hz;
+			err = adi_ad9081_hal_calc_nco_ftw_f(device, adc_freq_hz,
+							    fddc_shift_hz, &ftw,
+							    &a, &b);
+			AD9081_ERROR_RETURN(err);
+			err = adi_ad9081_adc_ddc_fine_nco_ftw_set(device, fddc,
+								  ftw, a, b);
+			AD9081_ERROR_RETURN(err);
+		}
+	}
+
+	return API_CMS_ERROR_OK;
+}
+#endif
+
 int32_t adi_ad9081_adc_ddc_fine_nco_ftw_set(adi_ad9081_device_t *device,
 					    uint8_t fddcs, uint64_t ftw,
 					    uint64_t modulus_a,
 					    uint64_t modulus_b)
 {
 	int32_t err;
+#if AD9081_USE_SPI_BURST_MODE > 0
+	uint8_t in_data[8];
+#endif
 	AD9081_NULL_POINTER_RETURN(device);
 	AD9081_LOG_FUNC();
 	AD9081_INVALID_PARAM_RETURN((ftw >> 48) > 0);
@@ -1737,6 +1918,44 @@ int32_t adi_ad9081_adc_ddc_fine_nco_ftw_set(adi_ad9081_device_t *device,
 
 	err = adi_ad9081_adc_ddc_fine_select_set(device, fddcs);
 	AD9081_ERROR_RETURN(err);
+#if AD9081_USE_SPI_BURST_MODE > 0
+	in_data[0] = (REG_FINE_DDC_PHASE_INC0_ADDR >> 8) & 0x3F;
+	in_data[1] = (REG_FINE_DDC_PHASE_INC0_ADDR >> 0) & 0xFF;
+	in_data[2] = (uint8_t)((ftw >> 0) & 0xFF);
+	in_data[3] = (uint8_t)((ftw >> 8) & 0xFF);
+	in_data[4] = (uint8_t)((ftw >> 16) & 0xFF);
+	in_data[5] = (uint8_t)((ftw >> 24) & 0xFF);
+	in_data[6] = (uint8_t)((ftw >> 32) & 0xFF);
+	in_data[7] = (uint8_t)((ftw >> 40) & 0xFF);
+	if (API_CMS_ERROR_OK !=
+	    device->hal_info.spi_xfer(device->hal_info.user_data, in_data, NULL,
+				      0x8))
+		return API_CMS_ERROR_SPI_XFER;
+	in_data[0] = (REG_FINE_DDC_PHASE_INC_FRAC_A0_ADDR >> 8) & 0x3F;
+	in_data[1] = (REG_FINE_DDC_PHASE_INC_FRAC_A0_ADDR >> 0) & 0xFF;
+	in_data[2] = (uint8_t)((modulus_a >> 0) & 0xFF);
+	in_data[3] = (uint8_t)((modulus_a >> 8) & 0xFF);
+	in_data[4] = (uint8_t)((modulus_a >> 16) & 0xFF);
+	in_data[5] = (uint8_t)((modulus_a >> 24) & 0xFF);
+	in_data[6] = (uint8_t)((modulus_a >> 32) & 0xFF);
+	in_data[7] = (uint8_t)((modulus_a >> 40) & 0xFF);
+	if (API_CMS_ERROR_OK !=
+	    device->hal_info.spi_xfer(device->hal_info.user_data, in_data, NULL,
+				      0x8))
+		return API_CMS_ERROR_SPI_XFER;
+	in_data[0] = (REG_FINE_DDC_PHASE_INC_FRAC_B0_ADDR >> 8) & 0x3F;
+	in_data[1] = (REG_FINE_DDC_PHASE_INC_FRAC_B0_ADDR >> 0) & 0xFF;
+	in_data[2] = (uint8_t)((modulus_b >> 0) & 0xFF);
+	in_data[3] = (uint8_t)((modulus_b >> 8) & 0xFF);
+	in_data[4] = (uint8_t)((modulus_b >> 16) & 0xFF);
+	in_data[5] = (uint8_t)((modulus_b >> 24) & 0xFF);
+	in_data[6] = (uint8_t)((modulus_b >> 32) & 0xFF);
+	in_data[7] = (uint8_t)((modulus_b >> 40) & 0xFF);
+	if (API_CMS_ERROR_OK !=
+	    device->hal_info.spi_xfer(device->hal_info.user_data, in_data, NULL,
+				      0x8))
+		return API_CMS_ERROR_SPI_XFER;
+#else
 	err = adi_ad9081_hal_bf_set(device, REG_FINE_DDC_PHASE_INC0_ADDR,
 				    0x3000, ftw);
 	AD9081_ERROR_RETURN(err);
@@ -1746,6 +1965,7 @@ int32_t adi_ad9081_adc_ddc_fine_nco_ftw_set(adi_ad9081_device_t *device,
 	err = adi_ad9081_hal_bf_set(device, REG_FINE_DDC_PHASE_INC_FRAC_B0_ADDR,
 				    0x3000, modulus_b);
 	AD9081_ERROR_RETURN(err);
+#endif
 
 	return API_CMS_ERROR_OK;
 }
@@ -1785,14 +2005,32 @@ adi_ad9081_adc_ddc_fine_nco_phase_offset_set(adi_ad9081_device_t *device,
 					     uint8_t fddcs, uint64_t offset)
 {
 	int32_t err;
+#if AD9081_USE_SPI_BURST_MODE > 0
+	uint8_t in_data[8];
+#endif
 	AD9081_NULL_POINTER_RETURN(device);
 	AD9081_LOG_FUNC();
 
 	err = adi_ad9081_adc_ddc_fine_select_set(device, fddcs);
 	AD9081_ERROR_RETURN(err);
+#if AD9081_USE_SPI_BURST_MODE > 0
+	in_data[0] = (REG_FINE_DDC_PHASE_OFFSET0_ADDR >> 8) & 0x3F;
+	in_data[1] = (REG_FINE_DDC_PHASE_OFFSET0_ADDR >> 0) & 0xFF;
+	in_data[2] = (uint8_t)((offset >> 0) & 0xFF);
+	in_data[3] = (uint8_t)((offset >> 8) & 0xFF);
+	in_data[4] = (uint8_t)((offset >> 16) & 0xFF);
+	in_data[5] = (uint8_t)((offset >> 24) & 0xFF);
+	in_data[6] = (uint8_t)((offset >> 32) & 0xFF);
+	in_data[7] = (uint8_t)((offset >> 40) & 0xFF);
+	if (API_CMS_ERROR_OK !=
+	    device->hal_info.spi_xfer(device->hal_info.user_data, in_data, NULL,
+				      0x8))
+		return API_CMS_ERROR_SPI_XFER;
+#else
 	err = adi_ad9081_hal_bf_set(device, REG_FINE_DDC_PHASE_OFFSET0_ADDR,
 				    0x3000, offset);
 	AD9081_ERROR_RETURN(err);
+#endif
 
 	return API_CMS_ERROR_OK;
 }
@@ -1972,11 +2210,146 @@ int32_t adi_ad9081_adc_config(adi_ad9081_device_t *device, uint8_t cddcs,
 	AD9081_LOG_FUNC();
 	AD9081_INVALID_PARAM_RETURN(device->dev_info.adc_freq_hz == 0);
 
-	/* set default crossbar */
 	err = adi_ad9081_device_die_id_get(device, &die_id);
 	AD9081_ERROR_RETURN(err);
-	adc_cddc_xbar = ((die_id & 0x80) == 0) ? AD9081_ADC_2_ADC_REAL_MODE :
-						 AD9081_ADC_4_ADC_REAL_MODE;
+
+	/* set adc flash tskew writes depending on fadc, setAdcFlashTskew()@ad9081_rx_r2.py */
+	if (device->dev_info.dev_rev == 3) { /* r2 */
+		if ((die_id & 0x80) == 0) { /* ad9081 */
+			if (device->dev_info.adc_freq_hz <=
+			    2000000000ULL) { /* 2.0e9 */
+				err = adi_ad9081_hal_bf_set(
+					device, 0x212c, 0x0103,
+					1); /* spare_uint8_width1_3 */
+				AD9081_ERROR_RETURN(err);
+				err = adi_ad9081_hal_bf_set(
+					device, 0x2114, 0x0204,
+					0); /* adc_flash_tskew */
+				AD9081_ERROR_RETURN(err);
+			} else if (device->dev_info.adc_freq_hz <=
+				   3000000000ULL) { /* 3.0e9 */
+				err = adi_ad9081_hal_bf_set(
+					device, 0x212c, 0x0103,
+					0); /* spare_uint8_width1_3 */
+				AD9081_ERROR_RETURN(err);
+				err = adi_ad9081_hal_bf_set(
+					device, 0x2114, 0x0204,
+					3); /* adc_flash_tskew */
+				AD9081_ERROR_RETURN(err);
+			} else if (device->dev_info.adc_freq_hz <=
+				   4000000000ULL) { /* 4.0e9 */
+				err = adi_ad9081_hal_bf_set(
+					device, 0x212c, 0x0103,
+					0); /* spare_uint8_width1_3 */
+				AD9081_ERROR_RETURN(err);
+				err = adi_ad9081_hal_bf_set(
+					device, 0x2114, 0x0204,
+					2); /* adc_flash_tskew */
+				AD9081_ERROR_RETURN(err);
+			} else if (device->dev_info.adc_freq_hz <=
+				   5000000000ULL) { /* 5.0e9 */
+				err = adi_ad9081_hal_bf_set(
+					device, 0x212c, 0x0103,
+					0); /* spare_uint8_width1_3 */
+				AD9081_ERROR_RETURN(err);
+				err = adi_ad9081_hal_bf_set(
+					device, 0x2114, 0x0204,
+					1); /* adc_flash_tskew */
+				AD9081_ERROR_RETURN(err);
+			} else if (device->dev_info.adc_freq_hz <=
+				   6000000000ULL) { /* 6.0e9 */
+				err = adi_ad9081_hal_bf_set(
+					device, 0x212c, 0x0103,
+					0); /* spare_uint8_width1_3 */
+				AD9081_ERROR_RETURN(err);
+				err = adi_ad9081_hal_bf_set(
+					device, 0x2114, 0x0204,
+					0); /* adc_flash_tskew */
+				AD9081_ERROR_RETURN(err);
+			} else {
+				err = adi_ad9081_hal_bf_set(
+					device, 0x212c, 0x0103,
+					0); /* spare_uint8_width1_3 */
+				AD9081_ERROR_RETURN(err);
+				err = adi_ad9081_hal_bf_set(
+					device, 0x2114, 0x0204,
+					0); /* adc_flash_tskew */
+				AD9081_ERROR_RETURN(err);
+			}
+		} else { /* mxfe */
+			if (device->dev_info.adc_freq_hz <=
+			    1000000000ULL) { /* 1.0e9 */
+				err = adi_ad9081_hal_bf_set(
+					device, 0x212c, 0x0103,
+					1); /* spare_uint8_width1_3 */
+				AD9081_ERROR_RETURN(err);
+				err = adi_ad9081_hal_bf_set(
+					device, 0x2114, 0x0204,
+					2); /* adc_flash_tskew */
+				AD9081_ERROR_RETURN(err);
+			} else if (device->dev_info.adc_freq_hz <=
+				   1500000000ULL) { /* 1.5e9 */
+				err = adi_ad9081_hal_bf_set(
+					device, 0x212c, 0x0103,
+					1); /* spare_uint8_width1_3 */
+				AD9081_ERROR_RETURN(err);
+				err = adi_ad9081_hal_bf_set(
+					device, 0x2114, 0x0204,
+					1); /* adc_flash_tskew */
+				AD9081_ERROR_RETURN(err);
+			} else if (device->dev_info.adc_freq_hz <=
+				   2000000000ULL) { /* 2.0e9 */
+				err = adi_ad9081_hal_bf_set(
+					device, 0x212c, 0x0103,
+					1); /* spare_uint8_width1_3 */
+				AD9081_ERROR_RETURN(err);
+				err = adi_ad9081_hal_bf_set(
+					device, 0x2114, 0x0204,
+					0); /* adc_flash_tskew */
+				AD9081_ERROR_RETURN(err);
+			} else if (device->dev_info.adc_freq_hz <=
+				   3000000000ULL) { /* 3.0e9 */
+				err = adi_ad9081_hal_bf_set(
+					device, 0x212c, 0x0103,
+					0); /* spare_uint8_width1_3 */
+				AD9081_ERROR_RETURN(err);
+				err = adi_ad9081_hal_bf_set(
+					device, 0x2114, 0x0204,
+					3); /* adc_flash_tskew */
+				AD9081_ERROR_RETURN(err);
+			} else if (device->dev_info.adc_freq_hz <=
+				   4000000000ULL) { /* 4.0e9 */
+				err = adi_ad9081_hal_bf_set(
+					device, 0x212c, 0x0103,
+					0); /* spare_uint8_width1_3 */
+				AD9081_ERROR_RETURN(err);
+				err = adi_ad9081_hal_bf_set(
+					device, 0x2114, 0x0204,
+					2); /* adc_flash_tskew */
+				AD9081_ERROR_RETURN(err);
+			} else {
+				err = adi_ad9081_hal_bf_set(
+					device, 0x212c, 0x0103,
+					0); /* spare_uint8_width1_3 */
+				AD9081_ERROR_RETURN(err);
+				err = adi_ad9081_hal_bf_set(
+					device, 0x2114, 0x0204,
+					2); /* adc_flash_tskew */
+				AD9081_ERROR_RETURN(err);
+			}
+		}
+		err = adi_ad9081_hal_reg_set(device, 0x2100,
+					     1); /* @user_ctrl_transfer */
+		AD9081_ERROR_RETURN(err);
+		err = adi_ad9081_hal_delay_us(device, 100000);
+		AD9081_ERROR_RETURN(err);
+	}
+
+	/* set default crossbar */
+	adc_cddc_xbar =
+		((die_id & 0x80) == 0) ?
+			AD9081_ADC_2_ADC_REAL_MODE :
+			AD9081_ADC_4_ADC_REAL_MODE; /* ad9081: 2x6G adc, mxfe: 4x4G adc */
 	cddc_fddc_xbar = AD9081_ADC_CDDC0_TO_FDDC0 | AD9081_ADC_CDDC1_TO_FDDC1 |
 			 AD9081_ADC_CDDC0_TO_FDDC2 | AD9081_ADC_CDDC1_TO_FDDC3;
 	cddc_fddc_xbar |= AD9081_ADC_CDDC2_TO_FDDC4 |
@@ -2017,7 +2390,9 @@ int32_t adi_ad9081_adc_config(adi_ad9081_device_t *device, uint8_t cddcs,
 								 0);
 			AD9081_ERROR_RETURN(err);
 			err = adi_ad9081_adc_ddc_coarse_nco_mode_set(
-				device, cddc, AD9081_ADC_NCO_VIF);
+				device, cddc,
+				(cddc_shift[i] == 0) ? AD9081_ADC_NCO_ZIF :
+						       AD9081_ADC_NCO_VIF);
 			AD9081_ERROR_RETURN(err);
 			err = adi_ad9081_adc_ddc_coarse_nco_set(device, cddc,
 								cddc_shift[i]);
@@ -2038,7 +2413,9 @@ int32_t adi_ad9081_adc_config(adi_ad9081_device_t *device, uint8_t cddcs,
 			err = adi_ad9081_adc_ddc_fine_gain_set(device, fddc, 0);
 			AD9081_ERROR_RETURN(err);
 			err = adi_ad9081_adc_ddc_fine_nco_mode_set(
-				device, fddc, AD9081_ADC_NCO_VIF);
+				device, fddc,
+				(fddc_shift[i] == 0) ? AD9081_ADC_NCO_ZIF :
+						       AD9081_ADC_NCO_VIF);
 			AD9081_ERROR_RETURN(err);
 
 			j = (i < 4) ?
@@ -2104,9 +2481,6 @@ int32_t adi_ad9081_adc_nyquist_zone_set(adi_ad9081_device_t *device,
 	}
 	err = adi_ad9081_hal_reg_set(device, 0x2100,
 				     1); /* @user_ctrl_transfer */
-	AD9081_ERROR_RETURN(err);
-	err = adi_ad9081_hal_reg_set(device, 0x2100,
-				     0); /* @user_ctrl_transfer */
 	AD9081_ERROR_RETURN(err);
 
 	return API_CMS_ERROR_OK;
@@ -2216,13 +2590,9 @@ adi_ad9081_adc_pfir_din_select_set(adi_ad9081_device_t *device,
 			err = adi_ad9081_adc_pfir_ctl_page_set(device,
 							       (1 << i));
 			AD9081_ERROR_RETURN(err);
-			err = adi_ad9081_hal_bf_set(
-				device, 0x0b12, 0x0200,
-				i_sel); /* PFILT_DIN_I_SEL */
-			AD9081_ERROR_RETURN(err);
-			err = adi_ad9081_hal_bf_set(
-				device, 0x0b12, 0x0202,
-				q_sel); /* PFILT_DIN_Q_SEL */
+			err = adi_ad9081_hal_2bf_set(
+				device, 0x0b12, 0x0200, i_sel, 0x0202,
+				q_sel); /* PFILT_DIN_I_SEL, PFILT_DIN_Q_SEL */
 			AD9081_ERROR_RETURN(err);
 		}
 	}
@@ -2295,6 +2665,23 @@ int32_t adi_ad9081_adc_pfir_q_mode_set(adi_ad9081_device_t *device,
 	return API_CMS_ERROR_OK;
 }
 
+int32_t adi_ad9081_adc_pfir_mode_set(adi_ad9081_device_t *device,
+				     adi_ad9081_adc_pfir_ctl_page_e ctl_pages,
+				     adi_ad9081_adc_pfir_i_mode_e i_mode,
+				     adi_ad9081_adc_pfir_q_mode_e q_mode)
+{
+	int32_t err;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+
+	err = adi_ad9081_adc_pfir_i_mode_set(device, ctl_pages, i_mode);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_pfir_q_mode_set(device, ctl_pages, q_mode);
+	AD9081_ERROR_RETURN(err);
+
+	return API_CMS_ERROR_OK;
+}
+
 int32_t adi_ad9081_adc_pfir_i_gain_set(adi_ad9081_device_t *device,
 				       adi_ad9081_adc_pfir_ctl_page_e ctl_pages,
 				       adi_ad9081_adc_pfir_gain_e ix_gain,
@@ -2343,6 +2730,27 @@ int32_t adi_ad9081_adc_pfir_q_gain_set(adi_ad9081_device_t *device,
 			AD9081_ERROR_RETURN(err);
 		}
 	}
+
+	return API_CMS_ERROR_OK;
+}
+
+int32_t adi_ad9081_adc_pfir_gain_set(adi_ad9081_device_t *device,
+				     adi_ad9081_adc_pfir_ctl_page_e ctl_pages,
+				     adi_ad9081_adc_pfir_gain_e ix_gain,
+				     adi_ad9081_adc_pfir_gain_e iy_gain,
+				     adi_ad9081_adc_pfir_gain_e qx_gain,
+				     adi_ad9081_adc_pfir_gain_e qy_gain)
+{
+	int32_t err;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+
+	err = adi_ad9081_adc_pfir_i_gain_set(device, ctl_pages, ix_gain,
+					     iy_gain);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_pfir_q_gain_set(device, ctl_pages, qx_gain,
+					     qy_gain);
+	AD9081_ERROR_RETURN(err);
 
 	return API_CMS_ERROR_OK;
 }
@@ -2538,6 +2946,93 @@ int32_t adi_ad9081_adc_pfir_rd_coeff_page_sel_set(
 	return API_CMS_ERROR_OK;
 }
 
+int32_t adi_ad9081_adc_pfir_coeff_validate(adi_ad9081_device_t *device,
+					   uint8_t ntaps, uint16_t coeffs[192])
+{
+	int32_t i, first_16b_idx, last_16b_idx, first_12b_idx, last_12b_idx;
+	int16_t coeff;
+	uint16_t abs_coeff;
+	uint8_t ntaps_index;
+	uint8_t coeff_num[][3] = {
+		/* 16bit, 12bit, 7bit */
+		{ 48, 48, 96 }, /* 192 taps */
+		{ 24, 24, 48 }, /* 96  taps */
+		{ 16, 16, 32 }, /* 64  taps */
+		{ 12, 12, 24 } /* 48  taps */
+	};
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+
+	/* get ntaps index */
+	if (ntaps == 192)
+		ntaps_index = 0;
+	else if (ntaps == 96)
+		ntaps_index = 1;
+	else if (ntaps == 64)
+		ntaps_index = 2;
+	else if (ntaps == 48)
+		ntaps_index = 3;
+	else
+		return API_CMS_ERROR_INVALID_PARAM;
+
+	/* find first and last 16bit coeff */
+	first_16b_idx = 192;
+	last_16b_idx = -1;
+	for (i = 0; i < 192; i++) {
+		coeff = (int16_t)coeffs[i];
+		abs_coeff =
+			(coeff > 0) ? (uint16_t)(coeff) : (uint16_t)(-coeff);
+		if ((abs_coeff & 0xf800) > 0) {
+			first_16b_idx = first_16b_idx > i ? i : first_16b_idx;
+			last_16b_idx = last_16b_idx < i ? i : last_16b_idx;
+		}
+	}
+
+	/* find first and last 12bit coeff */
+	first_12b_idx = 192;
+	last_12b_idx = -1;
+	for (i = 0; i < 192; i++) {
+		coeff = (int16_t)coeffs[i];
+		abs_coeff =
+			(coeff > 0) ? (uint16_t)(coeff) : (uint16_t)(-coeff);
+		if (((abs_coeff & 0xf800) == 0) && ((abs_coeff & 0x0fc0) > 0)) {
+			first_12b_idx = first_12b_idx > i ? i : first_12b_idx;
+			last_12b_idx = last_12b_idx < i ? i : last_12b_idx;
+		}
+	}
+
+	/* validate coeffs */
+	if ((first_16b_idx == 192) || (last_16b_idx == -1) ||
+	    (first_16b_idx >= last_16b_idx))
+		return API_CMS_ERROR_ERROR;
+	if ((first_12b_idx == 192) || (last_12b_idx == -1) ||
+	    (first_12b_idx >= last_12b_idx))
+		return API_CMS_ERROR_ERROR;
+
+	/* validate 16bits coeffs number */
+	if ((last_16b_idx - first_16b_idx + 1) > coeff_num[ntaps_index][0])
+		return API_CMS_ERROR_ERROR;
+
+	/* ...12/12/12/.../12/16/16/16... */
+	if (((last_12b_idx + 1) == first_16b_idx) &&
+	    ((last_12b_idx - first_12b_idx + 1) <= coeff_num[ntaps_index][1]))
+		return API_CMS_ERROR_OK;
+
+	/* ...16/16/16/.../16/12/12/12... */
+	if (((last_16b_idx + 1) == first_12b_idx) &&
+	    ((last_12b_idx - first_12b_idx + 1) <= coeff_num[ntaps_index][1]))
+		return API_CMS_ERROR_OK;
+
+	/* ...12/12/16/.../16/12/12/12... */
+	if (((first_12b_idx < first_16b_idx) &&
+	     (last_16b_idx < last_12b_idx)) &&
+	    ((last_12b_idx - first_12b_idx + 1) <=
+	     (coeff_num[ntaps_index][0] + coeff_num[ntaps_index][1])))
+		return API_CMS_ERROR_OK;
+
+	return API_CMS_ERROR_ERROR;
+}
+
 int32_t
 adi_ad9081_adc_pfir_coeff_set(adi_ad9081_device_t *device,
 			      adi_ad9081_adc_pfir_coeff_page_e coeff_pages,
@@ -2576,6 +3071,56 @@ adi_ad9081_adc_pfir_coeffs_set(adi_ad9081_device_t *device,
 					     coeffs[j] >> 8);
 		AD9081_ERROR_RETURN(err);
 	}
+
+	return API_CMS_ERROR_OK;
+}
+
+int32_t adi_ad9081_adc_pfir_config_set(
+	adi_ad9081_device_t *device, adi_ad9081_adc_pfir_ctl_page_e ctl_pages,
+	adi_ad9081_adc_pfir_coeff_page_e coeff_pages,
+	adi_ad9081_adc_pfir_i_mode_e i_mode,
+	adi_ad9081_adc_pfir_q_mode_e q_mode, adi_ad9081_adc_pfir_gain_e ix_gain,
+	adi_ad9081_adc_pfir_gain_e iy_gain, adi_ad9081_adc_pfir_gain_e qx_gain,
+	adi_ad9081_adc_pfir_gain_e qy_gain, uint8_t coeff_load_sel,
+	uint16_t *coeffs, uint8_t coeffs_size)
+{
+	int32_t err, i;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+
+	err = adi_ad9081_adc_pfir_coeff_clear_set(device, ctl_pages, 1);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_pfir_coeff_clear_set(device, ctl_pages, 0);
+	AD9081_ERROR_RETURN(err);
+
+	err = adi_ad9081_adc_pfir_i_mode_set(device, ctl_pages, i_mode);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_pfir_q_mode_set(device, ctl_pages, q_mode);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_pfir_i_gain_set(device, ctl_pages, ix_gain,
+					     iy_gain);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_pfir_q_gain_set(device, ctl_pages, qx_gain,
+					     qy_gain);
+	AD9081_ERROR_RETURN(err);
+
+	err = adi_ad9081_adc_pfir_coeff_load_sel_set(device, ctl_pages,
+						     coeff_load_sel);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_pfir_ctl_page_set(device, ctl_pages);
+	AD9081_ERROR_RETURN(err);
+	for (i = 0; i < coeffs_size; i++) {
+		err = adi_ad9081_adc_pfir_coeff_set(device, coeff_pages, i,
+						    coeffs[i]);
+		AD9081_ERROR_RETURN(err);
+	}
+	err = adi_ad9081_adc_pfir_coeff_load_sel_set(device, ctl_pages, 0);
+	AD9081_ERROR_RETURN(err);
+
+	err = adi_ad9081_adc_pfir_coeff_xfer_set(device, ctl_pages, 1);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_pfir_coeff_xfer_set(device, ctl_pages, 0);
+	AD9081_ERROR_RETURN(err);
 
 	return API_CMS_ERROR_OK;
 }
@@ -3071,36 +3616,6 @@ int32_t adi_ad9081_adc_trig_prog_delay_set(adi_ad9081_device_t *device,
 	return API_CMS_ERROR_OK;
 }
 
-int32_t adi_ad9081_adc_trig_rise_edge_enable_set(adi_ad9081_device_t *device,
-						 uint8_t enable)
-{
-	int32_t err;
-	AD9081_NULL_POINTER_RETURN(device);
-	AD9081_LOG_FUNC();
-
-	err = adi_ad9081_hal_bf_set(device, REG_TRIG_CTRL_ADDR,
-				    BF_RISEDGE_TRIG_INFO,
-				    enable); /* not paged */
-	AD9081_ERROR_RETURN(err);
-
-	return API_CMS_ERROR_OK;
-}
-
-int32_t adi_ad9081_adc_sysref_prog_delay_set(adi_ad9081_device_t *device,
-					     uint8_t delay)
-{
-	int32_t err;
-	AD9081_NULL_POINTER_RETURN(device);
-	AD9081_LOG_FUNC();
-
-	err = adi_ad9081_hal_bf_set(device, REG_SYSREF_PROG_DELAY_ADDR,
-				    BF_SYSREF_PROG_DELAY_INFO,
-				    delay); /* not paged */
-	AD9081_ERROR_RETURN(err);
-
-	return API_CMS_ERROR_OK;
-}
-
 int32_t adi_ad9081_adc_sysref_resync_mode_set(adi_ad9081_device_t *device,
 					      uint8_t mode)
 {
@@ -3126,6 +3641,21 @@ int32_t adi_ad9081_adc_sysref_rise_edge_enable_set(adi_ad9081_device_t *device,
 
 	err = adi_ad9081_hal_bf_set(device, REG_SYNC_CTRL1_ADDR,
 				    BF_RISEDGE_SYSREF_INFO,
+				    enable); /* not paged */
+	AD9081_ERROR_RETURN(err);
+
+	return API_CMS_ERROR_OK;
+}
+
+int32_t adi_ad9081_adc_trig_rise_edge_enable_set(adi_ad9081_device_t *device,
+						 uint8_t enable)
+{
+	int32_t err;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+
+	err = adi_ad9081_hal_bf_set(device, REG_TRIG_CTRL_ADDR,
+				    BF_RISEDGE_TRIG_INFO,
 				    enable); /* not paged */
 	AD9081_ERROR_RETURN(err);
 
@@ -3159,6 +3689,79 @@ adi_ad9081_adc_loopback_master_trig_enable_set(adi_ad9081_device_t *device,
 				    BF_LOOPBACK_MASTERTRIG_INFO,
 				    enable); /* not paged */
 	AD9081_ERROR_RETURN(err);
+
+	return API_CMS_ERROR_OK;
+}
+
+int32_t adi_ad9081_adc_nco_master_slave_sync(adi_ad9081_device_t *device,
+					     uint8_t is_master,
+					     uint8_t trigger_src,
+					     uint8_t gpio_index,
+					     uint8_t extra_lmfc_num)
+{
+	int32_t err;
+	AD9081_NULL_POINTER_RETURN(device);
+	AD9081_LOG_FUNC();
+
+	err = adi_ad9081_hal_bf_set(device, REG_MAIN_AUTO_CLK_GATING_ADDR,
+				    0x00000400, 7);
+	AD9081_ERROR_RETURN(err);
+
+	err = adi_ad9081_adc_ddc_coarse_sync_enable_set(device,
+							AD9081_ADC_CDDC_ALL, 1);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_ddc_coarse_sync_next_set(device,
+						      AD9081_ADC_CDDC_ALL, 1);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_ddc_coarse_trig_nco_reset_enable_set(
+		device, AD9081_ADC_CDDC_ALL, 0);
+	AD9081_ERROR_RETURN(err);
+
+	err = adi_ad9081_adc_ddc_fine_sync_enable_set(device,
+						      AD9081_ADC_FDDC_ALL, 1);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_ddc_fine_sync_next_set(device, AD9081_ADC_FDDC_ALL,
+						    1);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_ddc_fine_trig_nco_reset_enable_set(
+		device, AD9081_ADC_FDDC_ALL, 0);
+	AD9081_ERROR_RETURN(err);
+
+	err = adi_ad9081_device_nco_sync_mode_set(device,
+						  is_master > 0 ? 1 : 2);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_device_nco_sync_trigger_source_set(device,
+							    trigger_src);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_device_nco_sync_gpio_set(device, gpio_index,
+						  is_master > 0 ? 1 : 0);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_device_nco_sync_extra_lmfc_num_set(device,
+							    extra_lmfc_num);
+	AD9081_ERROR_RETURN(err);
+
+	err = adi_ad9081_adc_ddc_coarse_sync_next_set(device,
+						      AD9081_ADC_CDDC_ALL, 0);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_ddc_fine_sync_next_set(device, AD9081_ADC_FDDC_ALL,
+						    0);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_ddc_coarse_sync_next_set(device,
+						      AD9081_ADC_CDDC_ALL, 1);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_adc_ddc_fine_sync_next_set(device, AD9081_ADC_FDDC_ALL,
+						    1);
+	AD9081_ERROR_RETURN(err);
+
+	err = adi_ad9081_device_nco_sync_reset_via_sysref_set(device, 0);
+	AD9081_ERROR_RETURN(err);
+	err = adi_ad9081_device_nco_sync_reset_via_sysref_set(device, 1);
+	AD9081_ERROR_RETURN(err);
+
+	if (is_master > 0) {
+		err = adi_ad9081_device_nco_sync_trigger_set(device);
+		AD9081_ERROR_RETURN(err);
+	}
 
 	return API_CMS_ERROR_OK;
 }

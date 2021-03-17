@@ -18,22 +18,35 @@
 #include <linux/iio/buffer-dma.h>
 #include <linux/iio/buffer-dmaengine.h>
 
+#include "cf_axi_adc.h"
+
 /* AD7768 registers definition */
 #define AD7768_CH_MODE				0x01
 #define AD7768_POWER_MODE			0x04
+#define AD7768_DATA_CONTROL			0x06
 #define AD7768_INTERFACE_CFG			0x07
 
 /* AD7768_CH_MODE */
 #define AD7768_CH_MODE_FILTER_TYPE_MSK		BIT(3)
 #define AD7768_CH_MODE_FILTER_TYPE_MODE(x)	(((x) & 0x1) << 3)
+#define AD7768_CH_MODE_GET_FILTER_TYPE(x)	(((x) >> 3) & 0x1)
 #define AD7768_CH_MODE_DEC_RATE_MSK		GENMASK(2, 0)
 #define AD7768_CH_MODE_DEC_RATE_MODE(x)		(((x) & 0x7) << 0)
 
 /* AD7768_POWER_MODE */
 #define AD7768_POWER_MODE_POWER_MODE_MSK	GENMASK(5, 4)
 #define AD7768_POWER_MODE_POWER_MODE(x)		(((x) & 0x3) << 4)
+#define AD7768_POWER_MODE_GET_POWER_MODE(x)	(((x) >> 4) & 0x3)
 #define AD7768_POWER_MODE_MCLK_DIV_MSK		GENMASK(1, 0)
 #define AD7768_POWER_MODE_MCLK_DIV_MODE(x)	(((x) & 0x3) << 0)
+
+/* AD7768_DATA_CONTROL */
+#define AD7768_DATA_CONTROL_SPI_RESET_MSK	GENMASK(1, 0)
+#define AD7768_DATA_CONTROL_SPI_RESET_1		0x03
+#define AD7768_DATA_CONTROL_SPI_RESET_2		0x02
+#define AD7768_DATA_CONTROL_SPI_SYNC_MSK	BIT(7)
+#define AD7768_DATA_CONTROL_SPI_SYNC		BIT(7)
+#define AD7768_DATA_CONTROL_SPI_SYNC_CLEAR	0
 
 /* AD7768_INTERFACE_CFG */
 #define AD7768_INTERFACE_CFG_DCLK_DIV_MSK	GENMASK(1, 0)
@@ -42,83 +55,73 @@
 #define AD7768_MAX_SAMP_FREQ	256000
 #define AD7768_WR_FLAG_MSK(x)	(0x80 | ((x) & 0x7F))
 
+#define AD7768_OUTPUT_MODE_TWOS_COMPLEMENT	0x01
+#define AD7768_CONFIGS_PER_MODE			0x06
+#define AD7768_NUM_CONFIGS			0x04
+#define AD7768_MAX_RATE				(AD7768_CONFIGS_PER_MODE - 1)
+#define AD7768_MIN_RATE				0
+
+enum ad7768_power_modes {
+	AD7768_LOW_POWER_MODE,
+	AD7768_MEDIAN_MODE = 2,
+	AD7768_FAST_MODE
+};
+
 struct ad7768_state {
 	struct spi_device *spi;
 	struct mutex lock;
 	struct regulator *vref;
 	struct clk *mclk;
 	unsigned int sampling_freq;
+	enum ad7768_power_modes power_mode;
 	__be16 d16;
+};
+
+unsigned int ad7768_mclk_divs[] = {
+	[AD7768_LOW_POWER_MODE] = 32,
+	[AD7768_MEDIAN_MODE] = 8,
+	[AD7768_FAST_MODE] = 4
+};
+
+int ad7768_sampling_rates[AD7768_NUM_CONFIGS][AD7768_CONFIGS_PER_MODE] = {
+	[AD7768_LOW_POWER_MODE] = { 1000, 2000, 4000, 8000, 16000, 32000 },
+	[AD7768_MEDIAN_MODE] = { 4000, 8000, 16000, 32000, 64000, 128000 },
+	[AD7768_FAST_MODE] = { 8000, 16000, 32000, 64000, 128000, 256000 }
+};
+
+static const unsigned int ad7768_sampl_freq_avail[9] = {
+	1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000, 256000
 };
 
 enum ad7768_device_ids {
 	ID_AD7768
 };
 
-enum ad7768_mclk_div {
-	AD7768_MCLK_DIV_32,
-	AD7768_MCLK_DIV_8 = 2,
-	AD7768_MCLK_DIV_4
-};
-
-enum ad7768_dclk_div {
-	AD7768_DCLK_DIV_8,
-	AD7768_DCLK_DIV_4,
-	AD7768_DCLK_DIV_2,
-	AD7768_DCLK_DIV_1
-};
-
-struct ad7768_div_settings {
-	unsigned int mclk_div;
-	unsigned int dclk_div;
-	unsigned int clk_div;
-};
-
-static const struct ad7768_div_settings ad7768_div_set[] = {
-	{ AD7768_MCLK_DIV_4, AD7768_DCLK_DIV_1, 4 },
-	{ AD7768_MCLK_DIV_4, AD7768_DCLK_DIV_2, 8 },
-	{ AD7768_MCLK_DIV_8, AD7768_DCLK_DIV_2, 16 },
-	{ AD7768_MCLK_DIV_8, AD7768_DCLK_DIV_4, 32 },
-	{ AD7768_MCLK_DIV_8, AD7768_DCLK_DIV_8, 64 },
-	{ AD7768_MCLK_DIV_32, AD7768_DCLK_DIV_4, 128 },
-	{ AD7768_MCLK_DIV_32, AD7768_DCLK_DIV_8, 256 }
-};
-
 static const int ad7768_dec_rate[6] = {
 	32, 64, 128, 256, 512, 1024
 };
 
-#define AD7768_CHAN(index)						\
-	{								\
-		.type = IIO_VOLTAGE,					\
-		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),	\
-		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_SAMP_FREQ),\
-		.address = index,					\
-		.indexed = 1,						\
-		.channel = index,					\
-		.scan_index = index,					\
-		.scan_type = {						\
-			.sign = 's',					\
-			.realbits = 24,					\
-			.storagebits = 32,				\
-		},							\
-	}
 
-#define DECLARE_AD7768_CHANNELS(name)	\
-static struct iio_chan_spec name[] = {	\
-		AD7768_CHAN(0), \
-		AD7768_CHAN(1), \
-		AD7768_CHAN(2), \
-		AD7768_CHAN(3), \
-		AD7768_CHAN(4), \
-		AD7768_CHAN(5), \
-		AD7768_CHAN(6), \
-		AD7768_CHAN(7), \
+static bool ad7768_has_axi_adc(struct device *dev)
+{
+	return device_property_present(dev, "spibus-connected");
 }
 
-DECLARE_AD7768_CHANNELS(ad7768_channels);
+static struct ad7768_state *ad7768_get_data(struct iio_dev *indio_dev)
+{
+	struct axiadc_converter *conv;
 
-static int ad7768_spi_reg_read(struct ad7768_state *st, unsigned int addr)
+	if (ad7768_has_axi_adc(&indio_dev->dev)) {
+		/* AXI ADC*/
+		conv = iio_device_get_drvdata(indio_dev);
+		return conv->phy;
+	} else {
+		return iio_priv(indio_dev);
+	}
+}
+
+static int ad7768_spi_reg_read(struct ad7768_state *st, unsigned int addr,
+			       unsigned int *val)
 {
 	struct spi_transfer t[] = {
 		{
@@ -138,7 +141,9 @@ static int ad7768_spi_reg_read(struct ad7768_state *st, unsigned int addr)
 	if (ret < 0)
 		return ret;
 
-	return be16_to_cpu(st->d16);
+	*val = be16_to_cpu(st->d16);
+
+	return ret;
 }
 
 static int ad7768_spi_reg_write(struct ad7768_state *st,
@@ -155,11 +160,12 @@ static int ad7768_spi_write_mask(struct ad7768_state *st,
 				 unsigned long int mask,
 				 unsigned int val)
 {
-	int regval;
+	unsigned int regval;
+	int ret;
 
-	regval = ad7768_spi_reg_read(st, addr);
-	if (regval < 0)
-		return regval;
+	ret = ad7768_spi_reg_read(st, addr, &regval);
+	if (ret < 0)
+		return ret;
 
 	regval &= ~mask;
 	regval |= val;
@@ -172,16 +178,14 @@ static int ad7768_reg_access(struct iio_dev *indio_dev,
 			     unsigned int writeval,
 			     unsigned int *readval)
 {
-	struct ad7768_state *st = iio_priv(indio_dev);
+	struct ad7768_state *st = ad7768_get_data(indio_dev);
 	int ret;
 
 	mutex_lock(&st->lock);
 	if (readval) {
-		ret = ad7768_spi_reg_read(st, reg);
+		ret = ad7768_spi_reg_read(st, reg, readval);
 		if (ret < 0)
 			goto exit;
-
-		*readval = ret;
 		ret = 0;
 	} else {
 		ret = ad7768_spi_reg_write(st, reg, writeval);
@@ -192,96 +196,233 @@ exit:
 	return ret;
 }
 
-static int ad7768_set_samp_freq(struct ad7768_state *st,
-				enum ad7768_mclk_div mclk_div,
-				enum ad7768_dclk_div dclk_div,
-				unsigned int dec_rate_index)
+static int ad7768_sync(struct ad7768_state *st)
 {
-	unsigned int power_mode;
-	unsigned long int power_mask;
 	int ret;
 
-	mutex_lock(&st->lock);
-	power_mode = AD7768_POWER_MODE_POWER_MODE(mclk_div) |
-		     AD7768_POWER_MODE_MCLK_DIV_MODE(mclk_div);
-	power_mask = AD7768_POWER_MODE_POWER_MODE_MSK |
-		     AD7768_POWER_MODE_MCLK_DIV_MSK;
-
-	ret = ad7768_spi_write_mask(st, AD7768_POWER_MODE,
-				    power_mask, power_mode);
+	ret = ad7768_spi_write_mask(st, AD7768_DATA_CONTROL,
+				    AD7768_DATA_CONTROL_SPI_SYNC_MSK,
+				    AD7768_DATA_CONTROL_SPI_SYNC_CLEAR);
 	if (ret < 0)
-		goto err_unlock;
+		return ret;
+
+	return ad7768_spi_write_mask(st,  AD7768_DATA_CONTROL,
+				    AD7768_DATA_CONTROL_SPI_SYNC_MSK,
+				    AD7768_DATA_CONTROL_SPI_SYNC);
+}
+
+static int ad7768_set_clk_divs(struct ad7768_state *st,
+			       unsigned int mclk_div,
+			       unsigned int freq)
+{
+	unsigned int mclk, dclk_div, dec, div;
+	unsigned int result = 0;
+	int ret = 0;
+
+	mclk = clk_get_rate(st->mclk);
+
+	for (dclk_div = 0; dclk_div < 4 ; dclk_div++) {
+		for (dec = 0; dec < ARRAY_SIZE(ad7768_dec_rate); dec++) {
+			div = mclk_div *
+			      (1 <<  (3 - dclk_div)) *
+			      ad7768_dec_rate[dec];
+
+			result = DIV_ROUND_CLOSEST_ULL(mclk, div);
+			if (freq == result)
+				break;
+		}
+	}
+	if (freq != result)
+		return -EINVAL;
 
 	ret = ad7768_spi_write_mask(st, AD7768_INTERFACE_CFG,
 			AD7768_INTERFACE_CFG_DCLK_DIV_MSK,
-			AD7768_INTERFACE_CFG_DCLK_DIV_MODE(dclk_div));
+			AD7768_INTERFACE_CFG_DCLK_DIV_MODE(3 - dclk_div));
 	if (ret < 0)
-		goto err_unlock;
+		return ret;
+
+	return ad7768_spi_write_mask(st, AD7768_CH_MODE,
+				     AD7768_CH_MODE_DEC_RATE_MSK,
+				     AD7768_CH_MODE_DEC_RATE_MODE(dec));
+}
+
+static int ad7768_set_power_mode(struct iio_dev *dev,
+				 const struct iio_chan_spec *chan,
+				 unsigned int mode)
+{
+	struct ad7768_state *st = ad7768_get_data(dev);
+	unsigned int regval;
+	int ret;
+
+	/* Check if this mode supports the current sampling rate */
+	if (st->sampling_freq > ad7768_sampling_rates[mode][AD7768_MAX_RATE] ||
+	    st->sampling_freq < ad7768_sampling_rates[mode][AD7768_MIN_RATE])
+		return -EINVAL;
+
+	regval = AD7768_POWER_MODE_POWER_MODE(mode);
+	ret = ad7768_spi_write_mask(st, AD7768_POWER_MODE,
+				    AD7768_POWER_MODE_POWER_MODE_MSK,
+				    regval);
+	if (ret < 0)
+		return ret;
+	/* The values for the powermode correspond for mclk div */
+	ret = ad7768_spi_write_mask(st, AD7768_POWER_MODE,
+				    AD7768_POWER_MODE_MCLK_DIV_MSK,
+				    AD7768_POWER_MODE_MCLK_DIV_MODE(mode));
+	if (ret < 0)
+		return ret;
+
+	ret = ad7768_set_clk_divs(st, ad7768_mclk_divs[mode],
+				st->sampling_freq);
+	if (ret < 0)
+		return ret;
+
+	ret = ad7768_sync(st);
+	if (ret < 0)
+		return ret;
+
+	st->power_mode = mode;
+
+	return ret;
+}
+
+static int ad7768_get_power_mode(struct iio_dev *dev,
+				 const struct iio_chan_spec *chan)
+{
+	struct ad7768_state *st = ad7768_get_data(dev);
+	unsigned int regval;
+	int ret;
+
+	ret = ad7768_spi_reg_read(st, AD7768_POWER_MODE, &regval);
+	if (ret < 0)
+		return ret;
+
+	st->power_mode = AD7768_POWER_MODE_GET_POWER_MODE(regval);
+
+	return st->power_mode;
+}
+
+static const char * const ad7768_power_mode_iio_enum[] = {
+	[AD7768_LOW_POWER_MODE] = "LOW_POWER_MODE",
+	[AD7768_MEDIAN_MODE] = "MEDIAN_MODE",
+	[AD7768_FAST_MODE] = "FAST_MODE"
+};
+
+static const struct iio_enum ad7768_power_mode_enum = {
+	.items = ad7768_power_mode_iio_enum,
+	.num_items = ARRAY_SIZE(ad7768_power_mode_iio_enum),
+	.set = ad7768_set_power_mode,
+	.get = ad7768_get_power_mode,
+};
+static const char * const ad7768_filter_type_enum[] = {
+	"WIDEBAND",
+	"SINC5"
+};
+
+static int ad7768_set_filter_type(struct iio_dev *dev,
+				  const struct iio_chan_spec *chan,
+				  unsigned int filter)
+{
+	struct ad7768_state *st = ad7768_get_data(dev);
+	int ret;
 
 	ret = ad7768_spi_write_mask(st, AD7768_CH_MODE,
-			AD7768_CH_MODE_DEC_RATE_MSK,
-			AD7768_CH_MODE_DEC_RATE_MODE(dec_rate_index));
-err_unlock:
+				    AD7768_CH_MODE_FILTER_TYPE_MSK,
+				    AD7768_CH_MODE_FILTER_TYPE_MODE(filter));
+	if (ret < 0)
+		return ret;
+
+	return ad7768_sync(st);
+}
+
+static int ad7768_get_filter_type(struct iio_dev *dev,
+				  const struct iio_chan_spec *chan)
+{
+	struct ad7768_state *st = ad7768_get_data(dev);
+	unsigned int filter;
+	int ret;
+
+	ret = ad7768_spi_reg_read(st, AD7768_CH_MODE, &filter);
+	if (ret < 0)
+		return ret;
+
+	return AD7768_CH_MODE_GET_FILTER_TYPE(filter);
+}
+
+static const struct iio_enum ad7768_filter_type_iio_enum = {
+	.items = ad7768_filter_type_enum,
+	.num_items = ARRAY_SIZE(ad7768_filter_type_enum),
+	.set = ad7768_set_filter_type,
+	.get = ad7768_get_filter_type
+};
+
+static int ad7768_set_sampling_freq(struct iio_dev *dev,
+				    unsigned int freq)
+{
+	struct ad7768_state *st = ad7768_get_data(dev);
+	int power_mode = -1;
+	unsigned int i, j;
+	int ret = 0;
+
+	if (!freq)
+		return -EINVAL;
+
+	mutex_lock(&st->lock);
+
+	for (i = 0; i < AD7768_NUM_CONFIGS; i++) {
+		for (j = 0; j < AD7768_CONFIGS_PER_MODE; j++) {
+			if (freq == ad7768_sampling_rates[i][j]) {
+				power_mode = i;
+				break;
+			}
+		}
+	}
+
+	if (power_mode == -1) {
+		ret = -EINVAL;
+		goto freq_err;
+	}
+
+	ret = ad7768_set_clk_divs(st, ad7768_mclk_divs[power_mode], freq);
+	if (ret < 0)
+		goto freq_err;
+
+	st->sampling_freq = freq;
+
+	ret = ad7768_set_power_mode(dev, NULL, power_mode);
+	if (ret < 0)
+		goto freq_err;
+
+freq_err:
 	mutex_unlock(&st->lock);
 
 	return ret;
 }
 
-static int ad7768_samp_freq_config(struct ad7768_state *st,
-				   unsigned int freq)
+static ssize_t ad7768_attr_sampl_freq_avail(struct device *dev,
+					    struct device_attribute *attr,
+					    char *buf)
 {
-	unsigned int res, dclk, calc_freq, diff_new;
-	unsigned int div_set_idx, dec_rate_idx, mclk_freq;
-	int diff_old, i, j, ret;
+	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
+	struct ad7768_state *st;
+	int i, len = 0;
 
-	diff_old = S32_MAX;
-	div_set_idx = 0;
-	dec_rate_idx = 0;
-	calc_freq = AD7768_MAX_SAMP_FREQ;
-	mclk_freq = clk_get_rate(st->mclk);
+	st = ad7768_get_data(indio_dev);
+	for (i = 0; i < ARRAY_SIZE(ad7768_sampl_freq_avail); i++)
+		len += scnprintf(buf + len, PAGE_SIZE - len, "%d ",
+			ad7768_sampl_freq_avail[i]);
+	buf[len - 1] = '\n';
 
-	/*
-	 * Sampling freq is defined by MCLK, MCLK_DIV, DCLK_DIV and DEC_RATE:
-	 * samp_freq = MCLK / (MCLK_DIV * DCLK_DIV * DEC_RATE)
-	 */
-	for (i = 0; i < ARRAY_SIZE(ad7768_div_set); i++) {
-		if (calc_freq <= freq)
-			break;
-		/* DCLK = MCLK / (MCLK_DIV * DCLK_DIV) */
-		dclk = DIV_ROUND_CLOSEST(mclk_freq, ad7768_div_set[i].clk_div);
-		/*
-		 * Go through each decimation rate and determine a valid value
-		 * for the sampling frequency which is closest to the desired
-		 * sampling frequency
-		 */
-		for (j = 0; j < ARRAY_SIZE(ad7768_dec_rate); j++) {
-			res = DIV_ROUND_CLOSEST(dclk, ad7768_dec_rate[j]);
-			diff_new = abs(freq - res);
-			if (diff_new < diff_old) {
-				diff_old = diff_new;
-				div_set_idx = j;
-				dec_rate_idx = i;
-				calc_freq = res;
-			}
-		}
-	}
-
-	ret = ad7768_set_samp_freq(st, ad7768_div_set[div_set_idx].mclk_div,
-				   ad7768_div_set[div_set_idx].dclk_div,
-				   dec_rate_idx);
-	if (ret < 0)
-		return ret;
-
-	st->sampling_freq = calc_freq;
-
-	return ret;
+	return len;
 }
+
+static IIO_DEV_ATTR_SAMP_FREQ_AVAIL(ad7768_attr_sampl_freq_avail);
 
 static int ad7768_read_raw(struct iio_dev *indio_dev,
 			   const struct iio_chan_spec *chan,
 			   int *val, int *val2, long info)
 {
-	struct ad7768_state *st = iio_priv(indio_dev);
+	struct ad7768_state *st = ad7768_get_data(indio_dev);
 	int ret;
 
 	switch (info) {
@@ -305,20 +446,90 @@ static int ad7768_write_raw(struct iio_dev *indio_dev,
 			    struct iio_chan_spec const *chan,
 			    int val, int val2, long mask)
 {
-	struct ad7768_state *st = iio_priv(indio_dev);
-
 	switch (mask) {
 	case IIO_CHAN_INFO_SAMP_FREQ:
-		return ad7768_samp_freq_config(st, val);
+		return ad7768_set_sampling_freq(indio_dev, val);
 	default:
 		return -EINVAL;
 	}
 }
 
+static struct iio_chan_spec_ext_info ad7768_ext_info[] = {
+	IIO_ENUM("power_mode",
+		 IIO_SHARED_BY_ALL,
+		 &ad7768_power_mode_enum),
+	IIO_ENUM_AVAILABLE_SHARED("power_mode",
+				  IIO_SHARED_BY_ALL,
+				  &ad7768_power_mode_enum),
+	IIO_ENUM("filter_type",
+		 IIO_SHARED_BY_ALL,
+		 &ad7768_filter_type_iio_enum),
+	IIO_ENUM_AVAILABLE_SHARED("filter_type",
+				  IIO_SHARED_BY_ALL,
+				  &ad7768_filter_type_iio_enum),
+	{ },
+
+};
+
+static struct attribute *ad7768_attributes[] = {
+	&iio_dev_attr_sampling_frequency_available.dev_attr.attr,
+	NULL
+};
+
+static const struct attribute_group ad7768_group = {
+	.attrs = ad7768_attributes,
+};
+
 static const struct iio_info ad7768_info = {
+	.attrs = &ad7768_group,
 	.read_raw = &ad7768_read_raw,
 	.write_raw = &ad7768_write_raw,
 	.debugfs_reg_access = &ad7768_reg_access,
+};
+
+#define AD7768_CHAN(index)						\
+	{								\
+		.type = IIO_VOLTAGE,					\
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),	\
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_SAMP_FREQ),\
+		.address = index,					\
+		.indexed = 1,						\
+		.channel = index,					\
+		.scan_index = index,					\
+		.ext_info = ad7768_ext_info,				\
+		.scan_type = {						\
+			.sign = 's',					\
+			.realbits = 24,					\
+			.storagebits = 32,				\
+		},							\
+	}
+
+#define DECLARE_AD7768_CHANNELS(name)	\
+static struct iio_chan_spec name[] = {	\
+		AD7768_CHAN(0), \
+		AD7768_CHAN(1), \
+		AD7768_CHAN(2), \
+		AD7768_CHAN(3), \
+		AD7768_CHAN(4), \
+		AD7768_CHAN(5), \
+		AD7768_CHAN(6), \
+		AD7768_CHAN(7), \
+}
+
+DECLARE_AD7768_CHANNELS(ad7768_channels);
+
+static const struct axiadc_chip_info conv_chip_info = {
+	.name = "ad7768_axi_adc",
+	.max_rate = 256000000UL,
+	.num_channels = 8,
+	.channel[0] = AD7768_CHAN(0),
+	.channel[1] = AD7768_CHAN(1),
+	.channel[2] = AD7768_CHAN(2),
+	.channel[3] = AD7768_CHAN(3),
+	.channel[4] = AD7768_CHAN(4),
+	.channel[5] = AD7768_CHAN(5),
+	.channel[6] = AD7768_CHAN(6),
+	.channel[7] = AD7768_CHAN(7),
 };
 
 static int hw_submit_block(struct iio_dma_buffer_queue *queue,
@@ -334,11 +545,68 @@ static const struct iio_dma_buffer_ops dma_buffer_ops = {
 	.abort = iio_dmaengine_buffer_abort,
 };
 
+static void ad7768_reg_disable(void *data)
+{
+	struct regulator *reg = data;
+
+	regulator_disable(reg);
+}
+
+static void ad7768_clk_disable(void *data)
+{
+	struct clk *clk = data;
+
+	clk_disable_unprepare(clk);
+}
+
+static int ad7768_register_axi_adc(struct ad7768_state *st)
+{
+	struct axiadc_converter	*conv;
+
+	conv = devm_kzalloc(&st->spi->dev, sizeof(*conv), GFP_KERNEL);
+	if (conv == NULL)
+		return -ENOMEM;
+
+	conv->spi = st->spi;
+	conv->clk = st->mclk;
+	conv->chip_info = &conv_chip_info;
+	conv->adc_output_mode = AD7768_OUTPUT_MODE_TWOS_COMPLEMENT;
+	conv->reg_access = &ad7768_reg_access;
+	conv->write_raw = &ad7768_write_raw;
+	conv->read_raw = &ad7768_read_raw;
+	conv->attrs = &ad7768_group;
+	conv->phy = st;
+	/* Without this, the axi_adc won't find the converter data */
+	spi_set_drvdata(st->spi, conv);
+
+	return 0;
+}
+
+static int ad7768_register(struct ad7768_state *st, struct iio_dev *indio_dev)
+{
+	struct iio_buffer *buffer;
+
+	indio_dev->dev.parent = &st->spi->dev;
+	indio_dev->name = "ad7768";
+	indio_dev->modes = INDIO_DIRECT_MODE | INDIO_BUFFER_HARDWARE;
+	indio_dev->channels = ad7768_channels;
+	indio_dev->num_channels = ARRAY_SIZE(ad7768_channels);
+	indio_dev->info = &ad7768_info;
+
+	buffer = devm_iio_dmaengine_buffer_alloc(indio_dev->dev.parent, "rx",
+						&dma_buffer_ops, indio_dev);
+	if (IS_ERR(buffer))
+		return PTR_ERR(buffer);
+
+	iio_device_attach_buffer(indio_dev, buffer);
+
+	return devm_iio_device_register(&st->spi->dev, indio_dev);
+}
+
 static int ad7768_probe(struct spi_device *spi)
 {
 	struct ad7768_state *st;
 	struct iio_dev *indio_dev;
-	struct iio_buffer *buffer;
 	int ret;
 
 	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*st));
@@ -350,69 +618,41 @@ static int ad7768_probe(struct spi_device *spi)
 	st->vref = devm_regulator_get(&spi->dev, "vref");
 	if (IS_ERR(st->vref))
 		return PTR_ERR(st->vref);
-
-	st->mclk = devm_clk_get(&spi->dev, "mclk");
-	if (IS_ERR(st->mclk))
-		return PTR_ERR(st->mclk);
-
-	spi_set_drvdata(spi, indio_dev);
-
-	st->spi = spi;
-
-	mutex_init(&st->lock);
-
-	indio_dev->dev.parent = &spi->dev;
-	indio_dev->name = spi_get_device_id(spi)->name;
-	indio_dev->modes = INDIO_DIRECT_MODE | INDIO_BUFFER_HARDWARE;
-	indio_dev->channels = ad7768_channels;
-	indio_dev->num_channels = ARRAY_SIZE(ad7768_channels);
-	indio_dev->info = &ad7768_info;
-
-	buffer = iio_dmaengine_buffer_alloc(indio_dev->dev.parent, "rx",
-					    &dma_buffer_ops, indio_dev);
-	if (IS_ERR(buffer))
-		return PTR_ERR(buffer);
-
-	iio_device_attach_buffer(indio_dev, buffer);
-
 	ret = regulator_enable(st->vref);
 	if (ret)
 		return ret;
 
+	ret = devm_add_action_or_reset(&spi->dev, ad7768_reg_disable, st->vref);
+	if (ret)
+		return ret;
+
+	st->mclk = devm_clk_get(&spi->dev, "mclk");
+	if (IS_ERR(st->mclk))
+		return PTR_ERR(st->mclk);
 	ret = clk_prepare_enable(st->mclk);
 	if (ret < 0)
-		goto error_disable_reg;
+		return ret;
+	ret = devm_add_action_or_reset(&spi->dev, ad7768_clk_disable, st->mclk);
+	if (ret)
+		return ret;
 
-	ret = ad7768_samp_freq_config(st, AD7768_MAX_SAMP_FREQ);
+	st->spi = spi;
+
+	ret = ad7768_set_sampling_freq(indio_dev, AD7768_MAX_SAMP_FREQ);
 	if (ret < 0)
-		goto error_disable_clk;
+		return ret;
 
-	ret = devm_iio_device_register(&spi->dev, indio_dev);
-	if (ret < 0)
-		goto error_disable_clk;
+	mutex_init(&st->lock);
 
-	return 0;
-
-error_disable_clk:
-	clk_disable_unprepare(st->mclk);
-error_disable_reg:
-	regulator_disable(st->vref);
-
-	iio_dmaengine_buffer_free(indio_dev->buffer);
+	/*  If there is a reference to a dma channel, the device is not using
+	 *  the axi adc
+	 */
+	if (device_property_present(&spi->dev, "dmas"))
+		ret = ad7768_register(st, indio_dev);
+	else
+		ret = ad7768_register_axi_adc(st);
 
 	return ret;
-}
-
-static int ad7768_remove(struct spi_device *spi)
-{
-	struct iio_dev *indio_dev = spi_get_drvdata(spi);
-	struct ad7768_state *st = iio_priv(indio_dev);
-
-	iio_dmaengine_buffer_free(indio_dev->buffer);
-	clk_disable_unprepare(st->mclk);
-	regulator_disable(st->vref);
-
-	return 0;
 }
 
 static const struct spi_device_id ad7768_id[] = {
@@ -426,7 +666,6 @@ static struct spi_driver ad7768_driver = {
 		.name	= "ad7768",
 	},
 	.probe		= ad7768_probe,
-	.remove		= ad7768_remove,
 	.id_table	= ad7768_id,
 };
 module_spi_driver(ad7768_driver);

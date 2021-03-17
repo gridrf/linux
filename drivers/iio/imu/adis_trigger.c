@@ -27,74 +27,34 @@ static const struct iio_trigger_ops adis_trigger_ops = {
 	.set_trigger_state = &adis_data_rdy_trigger_set_state,
 };
 
-static inline void adis_trigger_setup(struct adis *adis)
+static void adis_trigger_setup(struct adis *adis)
 {
 	adis->trig->dev.parent = &adis->spi->dev;
 	adis->trig->ops = &adis_trigger_ops;
 	iio_trigger_set_drvdata(adis->trig, adis);
 }
 
-static inline int __adis_validate_irq_mask(struct adis *adis)
+static int adis_validate_irq_flag(struct adis *adis)
 {
-	if (!adis->irq_mask) {
-		adis->irq_mask = IRQF_TRIGGER_RISING;
+	/*
+	 * Typically this devices have data ready either on the rising edge or
+	 * on the falling edge of the data ready pin. This checks enforces that
+	 * one of those is set in the drivers... It defaults to
+	 * IRQF_TRIGGER_RISING for backward compatibility wiht devices that
+	 * don't support changing the pin polarity.
+	 */
+	if (!adis->irq_flag) {
+		adis->irq_flag = IRQF_TRIGGER_RISING;
 		return 0;
-	} else if (adis->irq_mask != IRQF_TRIGGER_RISING &&
-		   adis->irq_mask != IRQF_TRIGGER_FALLING) {
-		dev_err(&adis->spi->dev, "Invalid IRQ mask:%08x\n",
-			adis->irq_mask);
+	} else if (adis->irq_flag != IRQF_TRIGGER_RISING &&
+		   adis->irq_flag != IRQF_TRIGGER_FALLING) {
+		dev_err(&adis->spi->dev, "Invalid IRQ mask: %08lx\n",
+			adis->irq_flag);
 		return -EINVAL;
 	}
 
 	return 0;
 }
-/**
- * adis_probe_trigger() - Sets up trigger for a adis device
- * @adis: The adis device
- * @indio_dev: The IIO device
- *
- * Returns 0 on success or a negative error code
- *
- * adis_remove_trigger() should be used to free the trigger.
- */
-int adis_probe_trigger(struct adis *adis, struct iio_dev *indio_dev)
-{
-	int ret;
-
-	adis->trig = iio_trigger_alloc("%s-dev%d", indio_dev->name,
-					indio_dev->id);
-	if (adis->trig == NULL)
-		return -ENOMEM;
-
-	adis_trigger_setup(adis);
-
-	ret = __adis_validate_irq_mask(adis);
-	if (ret)
-		return ret;
-
-	ret = request_irq(adis->spi->irq,
-			  &iio_trigger_generic_data_rdy_poll,
-			  adis->irq_mask,
-			  indio_dev->name,
-			  adis->trig);
-	if (ret)
-		goto error_free_trig;
-
-	ret = iio_trigger_register(adis->trig);
-
-	indio_dev->trig = iio_trigger_get(adis->trig);
-	if (ret)
-		goto error_free_irq;
-
-	return 0;
-
-error_free_irq:
-	free_irq(adis->spi->irq, adis->trig);
-error_free_trig:
-	iio_trigger_free(adis->trig);
-	return ret;
-}
-EXPORT_SYMBOL_GPL(adis_probe_trigger);
 
 /**
  * devm_adis_probe_trigger() - Sets up trigger for a managed adis device
@@ -114,13 +74,13 @@ int devm_adis_probe_trigger(struct adis *adis, struct iio_dev *indio_dev)
 
 	adis_trigger_setup(adis);
 
-	ret = __adis_validate_irq_mask(adis);
+	ret = adis_validate_irq_flag(adis);
 	if (ret)
 		return ret;
 
 	ret = devm_request_irq(&adis->spi->dev, adis->spi->irq,
 			       &iio_trigger_generic_data_rdy_poll,
-			       adis->irq_mask,
+			       adis->irq_flag,
 			       indio_dev->name,
 			       adis->trig);
 	if (ret)
@@ -130,16 +90,3 @@ int devm_adis_probe_trigger(struct adis *adis, struct iio_dev *indio_dev)
 }
 EXPORT_SYMBOL_GPL(devm_adis_probe_trigger);
 
-/**
- * adis_remove_trigger() - Remove trigger for a adis devices
- * @adis: The adis device
- *
- * Removes the trigger previously registered with adis_probe_trigger().
- */
-void adis_remove_trigger(struct adis *adis)
-{
-	iio_trigger_unregister(adis->trig);
-	free_irq(adis->spi->irq, adis->trig);
-	iio_trigger_free(adis->trig);
-}
-EXPORT_SYMBOL_GPL(adis_remove_trigger);

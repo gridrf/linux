@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 #ifndef __AD916x_REGISTERS_H__
 #define __AD916x_REGISTERS_H__
 
@@ -15,11 +16,7 @@ int ad916x_register_write_tbl(ad916x_handle_t *h,
 #define AD9161_PROD_ID_LSB                        0x61
 #define AD9162_PROD_ID_LSB                        0x62
 #define AD9163_PROD_ID_LSB                        0x63
-/* On the pre-release part, this is the value defined
- * at the register 0x004. This might change with the
- * official part...
- */
-#define AD9166_PROD_ID_LSB			  0x00
+#define AD9166_PROD_ID_LSB                        0x66
 /*REGISTER SUMMARY : (AD916x_REGMAP_V4)*/
 #define AD916x_REG_IF_CFG_A                       0x000
 #define AD916x_REG_IF_CFG_B                       0x001

@@ -9,7 +9,7 @@
  */
 
 /*!
- * @addtogroup __ADI_AD9081_CONFIG_H__
+ * @addtogroup ADI_AD9081_INTERNAL_CONFIG
  * @{
  */
 #ifndef __ADI_AD9081_CONFIG_H__
@@ -39,6 +39,8 @@
 #else
 #define __FUNCTION_NAME__ __FUNCTION__
 #endif
+
+#define AD9081_API_REV 0x00010100
 
 /* var error report */
 #define AD9081_MSG_REPORT(var, comment)                                        \
@@ -122,6 +124,7 @@ int32_t adi_ad9081_device_clk_pll_div_set(adi_ad9081_device_t *device,
 					  uint8_t pll_div, uint8_t fb_div);
 int32_t adi_ad9081_device_clk_pll_startup(adi_ad9081_device_t *device,
 					  uint64_t dac_clk_hz,
+					  uint64_t adc_clk_hz,
 					  uint64_t ref_clk_hz);
 int32_t adi_ad9081_device_clk_up_div_set(adi_ad9081_device_t *device,
 					 uint64_t dac_clk_hz);
@@ -133,6 +136,22 @@ int32_t adi_ad9081_device_reg8_access_check(adi_ad9081_device_t *device);
 int32_t adi_ad9081_device_reg32_access_check(adi_ad9081_device_t *device);
 int32_t adi_ad9081_device_boot_pre_clock(adi_ad9081_device_t *device);
 int32_t adi_ad9081_device_boot_post_clock(adi_ad9081_device_t *device);
+int32_t adi_ad9081_device_nco_sync_mode_set(adi_ad9081_device_t *device,
+					    uint8_t mode);
+int32_t
+adi_ad9081_device_nco_sync_trigger_source_set(adi_ad9081_device_t *device,
+					      uint8_t source);
+int32_t adi_ad9081_device_nco_sync_gpio_set(adi_ad9081_device_t *device,
+					    uint8_t gpio_index, uint8_t output);
+int32_t
+adi_ad9081_device_nco_sync_extra_lmfc_num_set(adi_ad9081_device_t *device,
+					      uint8_t num);
+int32_t adi_ad9081_device_nco_sync_sysref_mode_set(adi_ad9081_device_t *device,
+						   uint8_t mode);
+int32_t
+adi_ad9081_device_nco_sync_reset_via_sysref_set(adi_ad9081_device_t *device,
+						uint8_t enable);
+int32_t adi_ad9081_device_nco_sync_trigger_set(adi_ad9081_device_t *device);
 
 int32_t adi_ad9081_dac_d2a_dual_spi_enable_set(adi_ad9081_device_t *device,
 					       uint8_t duals, uint8_t enable);
@@ -150,8 +169,13 @@ int32_t adi_ad9081_dac_data_xor_set(adi_ad9081_device_t *device, uint8_t dacs,
 				    uint8_t enable);
 
 int32_t adi_ad9081_adc_select_set(adi_ad9081_device_t *device, uint8_t adcs);
+int32_t adi_ad9081_adc_core_analog_regs_enable_set(adi_ad9081_device_t *device,
+						   uint8_t adc_cores,
+						   uint8_t enable);
 int32_t adi_ad9081_adc_core_setup(adi_ad9081_device_t *device,
 				  uint8_t adc_cores);
+int32_t adi_ad9081_adc_power_up_set(adi_ad9081_device_t *device, uint8_t adcs,
+				    uint8_t enable);
 uint8_t
 adi_ad9081_adc_ddc_coarse_dcm_decode(adi_ad9081_adc_coarse_ddc_dcm_e cddc_dcm);
 uint8_t
@@ -174,11 +198,6 @@ int32_t adi_ad9081_adc_ddc_coarse_dither_en_set(adi_ad9081_device_t *device,
 						uint8_t cddcs,
 						uint8_t amp_dither_en,
 						uint8_t phase_dither_en);
-int32_t adi_ad9081_adc_ddc_coarse_chip_xfer_set(adi_ad9081_device_t *device,
-						uint8_t cddcs);
-int32_t
-adi_ad9081_adc_ddc_coarse_chip_xfer_status_get(adi_ad9081_device_t *device,
-					       uint8_t cddcs, uint8_t *status);
 int32_t adi_ad9081_adc_ddc_coarse_psw_set(adi_ad9081_device_t *device,
 					  uint8_t cddcs, uint64_t psw);
 int32_t adi_ad9081_adc_ddc_fine_trig_nco_reset_enable_set(
@@ -194,18 +213,31 @@ int32_t adi_ad9081_adc_ddc_fine_dither_en_set(adi_ad9081_device_t *device,
 					      uint8_t fddcs,
 					      uint8_t amp_dither_en,
 					      uint8_t phase_dither_en);
-int32_t adi_ad9081_adc_ddc_fine_chip_xfer_set(adi_ad9081_device_t *device,
-					      uint8_t fddcs);
 
 int32_t adi_ad9081_jesd_tx_conv_mask_set(adi_ad9081_device_t *device,
 					 adi_ad9081_jesd_link_select_e links,
 					 uint8_t conv_index, uint8_t val);
+int32_t adi_ad9081_jesd_tx_link_conv_sel_set(
+	adi_ad9081_device_t *device, adi_ad9081_jesd_link_select_e links,
+	adi_ad9081_jtx_conv_sel_t jesd_conv_sel[2], uint8_t jesd_m[2]);
 int32_t adi_ad9081_jesd_tx_pll_status_get(adi_ad9081_device_t *device,
 					  uint8_t *pll_locked);
+int32_t adi_ad9081_jesd_rx_startup_des(adi_ad9081_device_t *device,
+				       adi_ad9081_deser_mode_e deser_mode);
 int32_t adi_ad9081_jesd_pll_lock_status_get(adi_ad9081_device_t *device,
 					    uint8_t *locked);
-int32_t adi_ad9081_jesd_rx_startup_des(adi_ad9081_device_t *device,
-				       uint8_t deser_rate_config);
+uint16_t adi_ad9081_jesd_find_dformat_out_nc(
+	adi_ad9081_jtx_conv_sel_t const *jesd_conv_sel, uint8_t jesd_m);
+uint8_t
+adi_ad9081_jesd_determine_common_nc(adi_ad9081_jesd_link_select_e links,
+				    adi_ad9081_jtx_conv_sel_t jesd_conv_sel[2],
+				    uint8_t jesd_m[2]);
+
+#if AD9081_USE_FLOATING_TYPE > 0
+int32_t adi_ad9081_hal_calc_nco_ftw_f(adi_ad9081_device_t *device, double freq,
+				      double nco_shift, uint64_t *ftw,
+				      uint64_t *a, uint64_t *b);
+#endif
 
 #ifdef __cplusplus
 }

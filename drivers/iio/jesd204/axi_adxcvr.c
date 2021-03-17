@@ -7,16 +7,22 @@
  *
  * https://wiki.analog.com/resources/fpga/docs/axi_adxcvr
  */
+
+#include <asm/io.h>
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/of_device.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
+#include <dt-bindings/jesd204/adxcvr.h>
 
 #include "axi_adxcvr.h"
 #include "xilinx_transceiver.h"
 #include "axi_adxcvr_eyescan.h"
 
+static const char *const adxcvr_sys_clock_sel_names[] = {
+	"CPLL", "UNDEF", "QPLL1", "QPLL"
+};
 
 static struct adxcvr_state *xcvr_to_adxcvr(struct xilinx_xcvr *xcvr)
 {
@@ -198,7 +204,15 @@ static int adxcvr_status_error(struct device *dev)
 	} while ((timeout--) && (status == 0));
 
 	if (!status) {
-		dev_err(dev, "%s Error: %x", st->tx_enable ? "TX" : "RX", status);
+		if (!st->qpll_enable && !st->cpll_enable) {
+			dev_info(dev, "%s %s: Not ready defer probe",
+				 adxcvr_sys_clock_sel_names[st->sys_clk_sel],
+				 st->tx_enable ? "TX" : "RX");
+			return -EPROBE_DEFER;
+		}
+		dev_err(dev, "%s %s Error: %x",
+			adxcvr_sys_clock_sel_names[st->sys_clk_sel],
+			st->tx_enable ? "TX" : "RX", status);
 		return -EIO;
 	}
 
@@ -235,14 +249,16 @@ static int adxcvr_clk_enable(struct clk_hw *hw)
 {
 	struct adxcvr_state *st =
 		container_of(hw, struct adxcvr_state, lane_clk_hw);
-	int ret;
+	int ret, retry = 1;
 
 	dev_dbg(st->dev, "%s: %s", __func__, st->tx_enable ? "TX" : "RX");
 
-
-	adxcvr_write(st, ADXCVR_REG_RESETN, ADXCVR_RESETN);
-
-	ret = adxcvr_status_error(st->dev);
+	do {
+		adxcvr_write(st, ADXCVR_REG_RESETN, 0);
+		udelay(2);
+		adxcvr_write(st, ADXCVR_REG_RESETN, ADXCVR_RESETN);
+		ret = adxcvr_status_error(st->dev);
+	} while (ret < 0 && retry--);
 
 	return ret;
 }
@@ -251,6 +267,8 @@ static void adxcvr_clk_disable(struct clk_hw *hw)
 {
 	struct adxcvr_state *st =
 		container_of(hw, struct adxcvr_state, lane_clk_hw);
+
+	dev_dbg(st->dev, "%s: %s", __func__, st->tx_enable ? "TX" : "RX");
 
 	adxcvr_write(st, ADXCVR_REG_RESETN, 0);
 }
@@ -288,6 +306,9 @@ static unsigned long adxcvr_clk_recalc_rate(struct clk_hw *hw,
 
 	} else {
 		struct xilinx_xcvr_qpll_config qpll_conf;
+
+		if (!st->qpll_enable)
+			return st->lane_rate;
 
 		xilinx_xcvr_qpll_read_config(&st->xcvr, st->sys_clk_sel,
 			ADXCVR_DRP_PORT_COMMON(0), &qpll_conf);
@@ -353,7 +374,7 @@ static int adxcvr_clk_set_rate(struct clk_hw *hw,
 		if (st->cpll_enable)
 			ret = xilinx_xcvr_cpll_write_config(&st->xcvr,
 							    ADXCVR_DRP_PORT_CHANNEL(i), &cpll_conf);
-		else if (i % 4 == 0)
+		else if ((i % 4 == 0) && st->qpll_enable)
 			ret = xilinx_xcvr_qpll_write_config(&st->xcvr,
 					st->sys_clk_sel,
 					ADXCVR_DRP_PORT_COMMON(i), &qpll_conf);
@@ -401,6 +422,27 @@ static const struct clk_ops clkout_ops = {
 	.set_rate = adxcvr_clk_set_rate,
 };
 
+static unsigned long adxcvr_qpll_recalc_rate(struct clk_hw *hw,
+					    unsigned long parent_rate)
+{
+	struct adxcvr_state *st =
+		container_of(hw, struct adxcvr_state, qpll_clk_hw);
+	struct xilinx_xcvr_qpll_config qpll_conf;
+
+	dev_dbg(st->dev, "%s: Parent Rate %lu Hz",
+		__func__, parent_rate);
+
+	xilinx_xcvr_qpll_read_config(&st->xcvr, st->sys_clk_sel,
+		ADXCVR_DRP_PORT_COMMON(0), &qpll_conf);
+
+	return xilinx_xcvr_qpll_calc_lane_rate(&st->xcvr,
+		st->sys_clk_sel, parent_rate, &qpll_conf, 1);
+}
+
+static const struct clk_ops qpll_ops = {
+	.recalc_rate = adxcvr_qpll_recalc_rate,
+};
+
 static int adxcvr_clk_register(struct device *dev,
 			       struct device_node *node,
 			       const char *parent_name)
@@ -408,13 +450,13 @@ static int adxcvr_clk_register(struct device *dev,
 	struct adxcvr_state *st = dev_get_drvdata(dev);
 	unsigned int out_clk_divider, out_clk_multiplier;
 	struct clk_init_data init;
-	const char *clk_names[2];
+	const char *clk_names[3];
 	unsigned int num_clks;
 	unsigned int i;
 	int ret;
 
 	num_clks = of_property_count_strings(node, "clock-output-names");
-	if (num_clks < 1 || num_clks > 2)
+	if (num_clks < 1 || num_clks > 3)
 		return -EINVAL;
 
 	for (i = 0; i < num_clks; i++) {
@@ -442,19 +484,35 @@ static int adxcvr_clk_register(struct device *dev,
 	if (num_clks == 1)
 		return of_clk_add_provider(node, of_clk_src_simple_get, st->clks[0]);
 
+	if (num_clks == 3) {
+		init.name = clk_names[2];
+		init.ops = &qpll_ops;
+		init.flags = CLK_GET_RATE_NOCACHE;
+
+		init.parent_names = (parent_name ? &parent_name : NULL);
+		init.num_parents = (parent_name ? 1 : 0);
+
+		st->qpll_clk_hw.init = &init;
+
+		/* register the clock */
+		st->clks[2] = devm_clk_register(dev, &st->qpll_clk_hw);
+		if (IS_ERR(st->clks[2]))
+			return PTR_ERR(st->clks[2]);
+	}
+
 	switch (st->out_clk_sel) {
-	case 1:
-	case 2:
+	case XCVR_OUTCLK_PCS:
+	case XCVR_OUTCLK_PMA:
 		/* lane rate / 40 */
 		out_clk_divider = 2; /* 40 */
 		out_clk_multiplier = 50; /* 1000 */
 		parent_name = clk_names[0];
 		break;
-	case 3:
+	case XCVR_REFCLK:
 		out_clk_divider = 1;
 		out_clk_multiplier = 1;
 		break;
-	case 4:
+	case XCVR_REFCLK_DIV2:
 		out_clk_divider = 2;
 		out_clk_multiplier = 1;
 		break;
@@ -518,19 +576,15 @@ static void adxcvr_parse_dt_vco_ranges(struct adxcvr_state *st,
 		st->xcvr.vco1_max = 0;
 }
 
-static int adxcvr_parse_dt(struct adxcvr_state *st, struct device_node *np)
+static void adxcvr_parse_dt(struct adxcvr_state *st, struct device_node *np)
 {
 	of_property_read_u32(np, "adi,sys-clk-select", &st->sys_clk_sel);
 	of_property_read_u32(np, "adi,out-clk-select", &st->out_clk_sel);
-
-	st->cpll_enable = of_property_read_bool(np, "adi,use-cpll-enable");
 	st->lpm_enable = of_property_read_bool(np, "adi,use-lpm-enable");
 
+	st->cpll_enable = st->sys_clk_sel == XCVR_CPLL;
+
 	adxcvr_parse_dt_vco_ranges(st, np);
-
-	INIT_WORK(&st->work, adxcvr_work_func);
-
-	return 0;
 }
 
 /* Match table for of_platform binding */
@@ -543,7 +597,6 @@ MODULE_DEVICE_TABLE(of, adxcvr_of_match);
 static void adxcvr_enforce_settings(struct adxcvr_state *st)
 {
 	unsigned long lane_rate, parent_rate;
-	int ret;
 
 	/*
 	 * Make sure filter settings, etc. are correct for the supplied reference
@@ -552,14 +605,20 @@ static void adxcvr_enforce_settings(struct adxcvr_state *st)
 	 */
 
 	parent_rate = clk_get_rate(st->conv_clk);
+	if (st->conv2_clk)
+		clk_set_rate(st->conv2_clk, parent_rate);
+
+	if (!st->qpll_enable && !st->cpll_enable) {
+		dev_warn(st->dev,
+			"%s: Using QPLL without access, assuming desired "
+			"Lane rate will be configured by a different instance",
+			__func__);
+		return;
+	}
 
 	lane_rate = adxcvr_clk_recalc_rate(&st->lane_clk_hw, parent_rate);
 
-	ret = adxcvr_clk_set_rate(&st->lane_clk_hw, lane_rate, parent_rate);
-	if (ret)
-		dev_err(st->dev,
-			"%s: Rate %lu Hz Parent Rate %lu Hz, error: %d",
-			__func__, lane_rate, parent_rate, ret);
+	adxcvr_clk_set_rate(&st->lane_clk_hw, lane_rate, parent_rate);
 }
 
 static void adxcvr_get_info(struct adxcvr_state *st)
@@ -583,6 +642,9 @@ static const char *adxcvr_gt_names[] = {
 	[XILINX_XCVR_TYPE_US_GTY4] = "GTY4",
 };
 
+static const struct jesd204_dev_data adxcvr_jesd204_data = {
+};
+
 static int adxcvr_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -595,9 +657,24 @@ static int adxcvr_probe(struct platform_device *pdev)
 	if (!st)
 		return -ENOMEM;
 
+	st->jdev = devm_jesd204_dev_register(&pdev->dev, &adxcvr_jesd204_data);
+	if (IS_ERR(st->jdev))
+		return PTR_ERR(st->jdev);
+
 	st->conv_clk = devm_clk_get(&pdev->dev, "conv");
 	if (IS_ERR(st->conv_clk))
 		return PTR_ERR(st->conv_clk);
+
+	/*
+	 * Otional CPLL/QPLL REFCLK from a difference source
+	 * which rate and state must be in sync with the conv clk
+	 */
+	st->conv2_clk = devm_clk_get(&pdev->dev, "conv2");
+	if (IS_ERR(st->conv2_clk)) {
+		if (PTR_ERR(st->conv2_clk) != -ENOENT)
+			return PTR_ERR(st->conv2_clk);
+		st->conv2_clk = NULL;
+	}
 
 	st->lane_rate_div40_clk = devm_clk_get(&pdev->dev, "div40");
 	if (IS_ERR(st->lane_rate_div40_clk)) {
@@ -620,18 +697,26 @@ static int adxcvr_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
+	if (st->conv2_clk) {
+		ret = clk_prepare_enable(st->conv2_clk);
+		if (ret)
+			goto disable_unprepare_conv_clk;
+	}
+
 	st->xcvr.dev = &pdev->dev;
 	st->xcvr.drp_ops = &adxcvr_drp_ops;
+	INIT_WORK(&st->work, adxcvr_work_func);
 
-	ret = adxcvr_parse_dt(st, np);
-	if (ret < 0)
-		goto disable_unprepare;
+	adxcvr_parse_dt(st, np);
+
+	if (st->sys_clk_sel > XCVR_QPLL)
+		return -EINVAL;
 
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	st->regs = devm_ioremap_resource(&pdev->dev, mem);
 	if (IS_ERR(st->regs)) {
 		ret = PTR_ERR(st->regs);
-		goto disable_unprepare;
+		goto disable_unprepare_conv_clk2;
 	}
 
 	st->dev = &pdev->dev;
@@ -641,8 +726,9 @@ static int adxcvr_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, st);
 
 	synth_conf = adxcvr_read(st, ADXCVR_REG_SYNTH);
-	st->tx_enable = (synth_conf >> 8) & 1;
+	st->tx_enable = !!(synth_conf & BIT(8));
 	st->num_lanes = synth_conf & 0xff;
+	st->qpll_enable = !!(synth_conf & BIT(20));
 
 	xcvr_type = (synth_conf >> 16) & 0xf;
 
@@ -663,7 +749,8 @@ static int adxcvr_probe(struct platform_device *pdev)
 			break;
 		default:
 			pr_err("axi_adxcvr: not supported\n");
-			return -EINVAL;
+			ret = -EINVAL;
+			goto disable_unprepare_conv_clk2;
 		}
 	} else
 		st->xcvr.type = xcvr_type;
@@ -677,7 +764,8 @@ static int adxcvr_probe(struct platform_device *pdev)
 	default:
 		dev_err(&pdev->dev, "Unknown transceiver type: %d\n",
 			st->xcvr.type);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto disable_unprepare_conv_clk2;
 	}
 	st->xcvr.encoding = ENC_8B10B;
 	st->xcvr.refclk_ppm = PM_200; /* TODO use clock accuracy */
@@ -701,26 +789,40 @@ static int adxcvr_probe(struct platform_device *pdev)
 
 	ret = adxcvr_clk_register(&pdev->dev, np, __clk_get_name(st->conv_clk));
 	if (ret)
-		return ret;
+		goto disable_unprepare_conv_clk2;
 
 	ret = adxcvr_eyescan_register(st);
 	if (ret)
-		return ret;
+		goto unreg_adxcvr_clk;
 
 	device_create_file(st->dev, &dev_attr_reg_access);
 
-	dev_info(&pdev->dev, "AXI-ADXCVR-%s (%d.%.2d.%c) using %s at 0x%08llX mapped to 0x%p. Number of lanes: %d.",
+	ret = jesd204_fsm_start(st->jdev, JESD204_LINKS_ALL);
+	if (ret)
+		goto remove_debugfs;
+
+	dev_info(&pdev->dev, "AXI-ADXCVR-%s (%d.%.2d.%c) using %s on %s at 0x%08llX. Number of lanes: %d.",
 		st->tx_enable ? "TX" : "RX",
 		ADI_AXI_PCORE_VER_MAJOR(st->xcvr.version),
 		ADI_AXI_PCORE_VER_MINOR(st->xcvr.version),
 		ADI_AXI_PCORE_VER_PATCH(st->xcvr.version),
+		adxcvr_sys_clock_sel_names[st->sys_clk_sel],
 		adxcvr_gt_names[st->xcvr.type],
-		(unsigned long long)mem->start, st->regs,
+		(unsigned long long)mem->start,
 		st->num_lanes);
 
 	return 0;
 
-disable_unprepare:
+remove_debugfs:
+	device_remove_file(st->dev, &dev_attr_reg_access);
+	adxcvr_eyescan_unregister(st);
+unreg_adxcvr_clk:
+	if (st->clks[1])
+		clk_unregister_fixed_factor(st->clks[1]);
+	of_clk_del_provider(pdev->dev.of_node);
+disable_unprepare_conv_clk2:
+	clk_disable_unprepare(st->conv2_clk);
+disable_unprepare_conv_clk:
 	clk_disable_unprepare(st->conv_clk);
 
 	return ret;
@@ -740,11 +842,11 @@ static int adxcvr_remove(struct platform_device *pdev)
 
 	device_remove_file(st->dev, &dev_attr_reg_access);
 	adxcvr_eyescan_unregister(st);
-	of_clk_del_provider(pdev->dev.of_node);
-	clk_disable_unprepare(st->conv_clk);
-
 	if (st->clks[1])
 		clk_unregister_fixed_factor(st->clks[1]);
+	of_clk_del_provider(pdev->dev.of_node);
+	clk_disable_unprepare(st->conv2_clk);
+	clk_disable_unprepare(st->conv_clk);
 
 	return 0;
 }

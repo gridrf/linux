@@ -33,6 +33,7 @@
 #define AXI_ADC_TRIG_REG_TRIGGERED		0x3c
 #define AXI_ADC_TRIG_REG_DELAY			0x40
 #define AXI_ADC_TRIG_REG_STREAMING		0x44
+#define AXI_ADC_TRIG_REG_HOLDOFF		0x48
 
 /* AXI_ADC_TRIG_REG_CONFIG_TRIGGER */
 #define CONF_LOW_LEVEL				0
@@ -48,6 +49,8 @@
 #define TRIGGER_PIN_CHAN			2
 #define TRIGGER_ADC_CHAN			2
 #define TRIGGER_MIX_CHAN			2
+
+#define TRIGGER_HOLDOFF_MASK			GENMASK(31, 0)
 
 #define IIO_ENUM_AVAILABLE_SEPARATE(_name, _e) \
 { \
@@ -365,6 +368,7 @@ static const char * const axi_adc_trig_trigger_out_mix_mode_items[] = {
 	"a_OR_trigger_in",
 	"b_OR_trigger_in",
 	"a_OR_b_OR_trigger_in",
+	"disabled"
 };
 
 static const struct iio_enum axi_adc_trig_trigger_out_mix_mode_enum = {
@@ -496,6 +500,35 @@ static ssize_t axi_adc_trig_set_streaming(struct iio_dev *indio_dev,
 	return len;
 }
 
+static ssize_t axi_adc_trig_get_holdoff(struct iio_dev *indio_dev,
+	uintptr_t priv, const struct iio_chan_spec *chan, char *buf)
+{
+	struct axi_adc_trig *axi_adc_trig = iio_priv(indio_dev);
+	unsigned int val;
+
+	val = axi_adc_trig_read(axi_adc_trig, AXI_ADC_TRIG_REG_HOLDOFF);
+	val &= TRIGGER_HOLDOFF_MASK;
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", val);
+}
+
+static ssize_t axi_adc_trig_set_holdoff(struct iio_dev *indio_dev,
+	uintptr_t priv, const struct iio_chan_spec *chan, const char *buf,
+	size_t len)
+{
+	struct axi_adc_trig *axi_adc_trig = iio_priv(indio_dev);
+	unsigned int val;
+	int ret;
+
+	ret = kstrtouint(buf, 10, &val);
+	if (ret < 0)
+		return ret;
+
+	axi_adc_trig_write(axi_adc_trig, AXI_ADC_TRIG_REG_HOLDOFF, val);
+
+	return len;
+}
+
 static ssize_t axi_adc_trig_get_embedded_trigger(struct iio_dev *indio_dev,
 	uintptr_t priv, const struct iio_chan_spec *chan, char *buf)
 {
@@ -563,6 +596,12 @@ static const struct iio_chan_spec_ext_info axi_adc_trig_analog_info[] = {
 		.shared = IIO_SHARED_BY_ALL,
 		.write = axi_adc_trig_set_streaming,
 		.read = axi_adc_trig_get_streaming,
+	},
+	{
+		.name = "holdoff_raw",
+		.shared = IIO_SHARED_BY_ALL,
+		.write = axi_adc_trig_set_holdoff,
+		.read = axi_adc_trig_get_holdoff,
 	},
 	{}
 };
@@ -673,6 +712,13 @@ static const struct iio_info axi_adc_trig_iio_info = {
 	.debugfs_reg_access = axi_adc_trig_reg_access,
 };
 
+static void axi_adc_trigger_clk_disable(void *data)
+{
+	struct clk *clk = data;
+
+	clk_disable_unprepare(clk);
+}
+
 static int axi_adc_trig_probe(struct platform_device *pdev)
 {
 	struct iio_dev *indio_dev;
@@ -694,6 +740,11 @@ static int axi_adc_trig_probe(struct platform_device *pdev)
 	ret = clk_prepare_enable(axi_adc_trig->clk);
 	if (ret < 0)
 		return -EINVAL;
+
+	ret = devm_add_action_or_reset(&pdev->dev, axi_adc_trigger_clk_disable,
+				       axi_adc_trig->clk);
+	if (ret)
+		return ret;
 
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	axi_adc_trig->regs = devm_ioremap_resource(&pdev->dev, mem);
@@ -722,22 +773,7 @@ static int axi_adc_trig_probe(struct platform_device *pdev)
 	axi_adc_trig_write(axi_adc_trig, AXI_ADC_TRIG_REG_LIMIT(1), 0);
 	axi_adc_trig_write(axi_adc_trig, AXI_ADC_TRIG_REG_DELAY, 0);
 
-	ret = devm_iio_device_register(&pdev->dev, indio_dev);
-	if (ret)
-		return ret;
-
-	return 0;
-}
-
-static int axi_adc_trig_remove(struct platform_device *pdev)
-{
-	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
-	struct axi_adc_trig *axi_adc_trig = iio_priv(indio_dev);
-
-	iio_device_unregister(indio_dev);
-	clk_disable_unprepare(axi_adc_trig->clk);
-
-	return 0;
+	return devm_iio_device_register(&pdev->dev, indio_dev);
 }
 
 static const struct of_device_id axi_adc_trig_of_match[] = {
@@ -751,7 +787,6 @@ static struct platform_driver axi_adc_trig_driver = {
 		.of_match_table = axi_adc_trig_of_match,
 	},
 	.probe = axi_adc_trig_probe,
-	.remove = axi_adc_trig_remove,
 };
 module_platform_driver(axi_adc_trig_driver);
 

@@ -1,11 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Atmel MACB Ethernet Controller driver
  *
  * Copyright (C) 2004-2006 Atmel Corporation
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 #ifndef _MACB_H
 #define _MACB_H
@@ -486,6 +483,7 @@
 #define GEM_TX_PKT_BUFF_OFFSET			21
 #define GEM_TX_PKT_BUFF_SIZE			1
 
+
 /* Bitfields in DCFG5. */
 #define GEM_TSU_OFFSET				8
 #define GEM_TSU_SIZE				1
@@ -586,6 +584,9 @@
 #define GEM_T2OFST_OFFSET			0 /* offset value */
 #define GEM_T2OFST_SIZE				7
 
+/* Bitfields in queue pointer registers */
+#define GEM_RBQP_DISABLE	0x1
+
 /* Offset for screener type 2 compare values (T2CMPOFST).
  * Note the offset is applied after the specified point,
  * e.g. GEM_T2COMPOFST_ETYPE denotes the EtherType field, so an offset
@@ -648,10 +649,17 @@
 #define GEM_CLK_DIV96				5
 
 /* Constants for MAN register */
-#define MACB_MAN_SOF				1
-#define MACB_MAN_WRITE				1
-#define MACB_MAN_READ				2
-#define MACB_MAN_CODE				2
+#define MACB_MAN_C22_SOF			1
+#define MACB_MAN_C22_WRITE			1
+#define MACB_MAN_C22_READ			2
+#define MACB_MAN_C22_CODE			2
+
+#define MACB_MAN_C45_SOF			0
+#define MACB_MAN_C45_ADDR			0
+#define MACB_MAN_C45_WRITE			1
+#define MACB_MAN_C45_POST_READ_INCR		2
+#define MACB_MAN_C45_READ			3
+#define MACB_MAN_C45_CODE			2
 
 /* Capability mask bits */
 #define MACB_CAPS_ISR_CLEAR_ON_WRITE		0x00000001
@@ -666,6 +674,8 @@
 #define MACB_CAPS_PCS				0x00000400
 #define MACB_CAPS_PARTIAL_STORE_FORWARD		0x00000800
 #define MACB_CAPS_WOL				0x00000200
+#define MACB_CAPS_NEED_TSUCLK			0x00001000
+#define MACB_CAPS_QUEUE_DISABLE			0x00002000
 #define MACB_CAPS_FIFO_MODE			0x10000000
 #define MACB_CAPS_GIGABIT_MODE_AVAILABLE	0x20000000
 #define MACB_CAPS_SG_DISABLED			0x40000000
@@ -736,6 +746,8 @@
 			__v = macb_readl((__bp), __reg); \
 		__v; \
 	})
+
+#define MACB_READ_NSR(bp)	macb_readl(bp, NSR)
 
 /* struct macb_dma_desc - Hardware DMA descriptor
  * @addr: DMA address of data buffer
@@ -1086,7 +1098,8 @@ struct macb_or_gem_ops {
 	int	(*mog_alloc_rx_buffers)(struct macb *bp);
 	void	(*mog_free_rx_buffers)(struct macb *bp);
 	void	(*mog_init_rings)(struct macb *bp);
-	int	(*mog_rx)(struct macb_queue *queue, int budget);
+	int	(*mog_rx)(struct macb_queue *queue, struct napi_struct *napi,
+			  int budget);
 };
 
 /* MACB-PTP interface: adapt to platform needs. */
@@ -1101,6 +1114,11 @@ struct macb_ptp_info {
 			 struct ifreq *ifr);
 	int (*set_hwtst)(struct net_device *netdev,
 			 struct ifreq *ifr, int cmd);
+};
+
+struct macb_pm_data {
+	u32 scrt2;
+	u32 usrio;
 };
 
 struct macb_config {
@@ -1250,11 +1268,7 @@ struct macb {
 
 	u32	rx_intr_mask;
 
-	/* special flag for when the connection between
-	 * the phy and the MAC fails, but, there are more
-	 * phys on the mdio bus...
-	 */
-	bool keep_mac_around;
+	struct macb_pm_data pm_data;
 };
 
 #ifdef CONFIG_MACB_USE_HWSTAMP
