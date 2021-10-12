@@ -522,4 +522,17 @@ config PWM_ZX
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-zx.
 
+config PWM_XLNX
+	tristate "Xilinx PWM support"
+	help
+	  Generic PWM framework driver for xilinx axi timer.
+
+	  This driver implements the pwm channel of a xilinx axi timer hardware
+	  block.
+	  The hardware block has to be configured with generate output signal 
+	  of timer 1 and timer 2 active high.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called pwm-xlnx.
+
 endif

@@ -238,6 +238,14 @@ config COMMON_CLK_AXI_CLKGEN
 	  Support for the Analog Devices axi-clkgen pcore clock generator for Xilinx
 	  FPGAs. It is commonly used in Analog Devices' reference designs.
 
+config COMMON_CLK_DGLNT_DYNCLK
+	tristate "Digilent axi_dynclk Driver"
+	depends on ARCH_ZYNQ || MICROBLAZE
+	help
+	---help---
+	  Support for the Digilent AXI Dynamic Clock core for Xilinx
+	  FPGAs.
+
 config CLK_QORIQ
 	bool "Clock driver for Freescale QorIQ platforms"
 	depends on (PPC_E500MC || ARM || ARM64 || COMPILE_TEST) && OF

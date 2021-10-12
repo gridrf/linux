@@ -1,0 +1,304 @@
+/dts-v1/;
+#include "zynq-nh7020.dtsi"
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	model = "Gridrf.com NH7020 LCD (Z7020/AD9361)";
+	chosen {
+		stdout-path = "/amba@0/uart@E0000000";
+	};
+};
+
+&axi_i2c0 {	
+	wm8960: wm8960@1a {
+		compatible = "wlf,wm8960";
+		reg = <0x1a>;
+		clocks = <&audio_clock>;
+		clock-names = "mclk";
+		wlf,shared-lrclk;
+		#sound-dai-cells = <0>;
+	}; 
+	
+	gt911@5d {
+		compatible = "goodix,gt911";
+		reg = <0x5d>;
+		interrupt-parent = <&gpio0>;
+		interrupts = <68 0>;
+
+		irq-gpios = <&gpio0 68 0>;
+		reset-gpios = <&gpio0 69 0>;
+	};
+
+	cw2015@62 {
+		compatible = "cw201x";
+		reg = <0x62>;
+		bat_config_info = <0x15 0x42 0x60 0x59 0x52 0x58 0x4D 0x48 0x48 0x44 0x44 0x46 0x49 0x48 0x32 0x24 0x20 0x17 0x13 0x0F 0x19 0x3E 0x51 0x45 0x08 0x76 0x0B 0x85 0x0E 0x1C 0x2E 0x3E 0x4D 0x52 0x52 0x57 0x3D 0x1B 0x6A 0x2D 0x25 0x43 0x52 0x87 0x8F 0x91 0x94 0x52 0x82 0x8C 0x92 0x96 0xFF 0x7B 0xBB 0xCB 0x2F 0x7D 0x72 0xA5 0xB5 0xC1 0x46 0xAE>;
+		monitor_sec = <5>;
+		virtual_power = <0>;
+		design_capacity = <3000>;
+	};
+};
+
+/ {
+	vbat: fixedregulator0 {
+		compatible = "regulator-fixed";
+		regulator-name = "bat";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		enable-active-high;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio0 13 GPIO_ACTIVE_HIGH>;
+	};
+
+	regulator-poweroff {
+		compatible = "regulator-poweroff";
+		cpu-supply = <&vbat>;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		led0 {
+			label = "led0:green";
+			gpios = <&gpio0 56 1>;
+			};
+
+		led1 {
+			label = "led1:red";
+			gpios = <&gpio0 55 1>;
+		};
+
+		led2 {
+			label = "led2:blue";
+			gpios = <&gpio0 54 0>;
+		};
+	};
+	
+	gpio-keys-power {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		interrupt-parent = <&gpio0>;
+		autorepeat;
+		
+		s1 {
+			label = "Power";
+			linux,code = <KEY_POWER>;
+			interrupts = <10 IRQ_TYPE_EDGE_FALLING>;
+			debounce-interval = <10>;
+			gpio-key,wakeup;
+		};
+
+	};
+
+
+	audio_clock: audio_clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <12288000>;
+	};
+
+	nh7020_sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "NH7020 AUDIO";
+		simple-audio-card,format = "i2s";
+		
+		simple-audio-card,widgets =
+			"Microphone", "Mic Jack",
+			"Speaker", "Speaker",
+			"Headphone", "Headphone Jack";
+
+		simple-audio-card,routing =
+			"Headphone Jack", "HP_L",
+			"Headphone Jack", "HP_R",
+			"Speaker", "SPK_LP",
+			"Speaker", "SPK_LN",
+			"Speaker", "SPK_RP",
+			"Speaker", "SPK_RN",
+                	"RINPUT1", "Mic Jack",
+                	"RINPUT2", "Mic Jack";
+
+		simple-audio-card,dai-link@0 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&axi_i2s_0>;
+				frame-master;
+				bitclock-master;
+			};
+			codec {
+				sound-dai = <&wm8960>;
+			};
+		};
+	};
+
+	video_timings {
+             timing_4x3_480x800: timing0 {
+                 clock-frequency = <33000000>;
+                 hactive = <480>;
+                 vactive = <800>;
+
+                 hback-porch = <32>;
+                 hsync-len = <3>;
+                 hfront-porch = <13>;
+                 vback-porch = <88>;
+                 vsync-len = <48>;
+                 vfront-porch = <40>;
+
+                 hsync-active = <0>;
+                 vsync-active = <0>;
+                 de-active = <1>;
+                 pixelclk-active = <0>;
+             };
+
+             timing_4x3_800x480: timing1 {
+                     clock-frequency = <33000000>;
+                     hactive = <800>;
+                     vactive = <480>;
+
+                     hback-porch = <88>;
+                     hsync-len = <48>;
+                     hfront-porch = <40>;
+                     vback-porch = <32>;
+                     vsync-len = <3>;
+                     vfront-porch = <13>;
+
+                     hsync-active = <0>;
+                     vsync-active = <0>;
+                     de-active = <1>;
+                     pixelclk-active = <0>;
+             };
+
+             timing_7_800x480: timing2 {
+                     clock-frequency = <33000000>;
+                     hactive = <800>;
+                     vactive = <480>;
+
+                     hback-porch = <46>;
+                     hsync-len = <20>;
+                     hfront-porch = <210>;
+                     vback-porch = <23>;
+                     vsync-len = <3>;
+                     vfront-porch = <22>;
+
+                     hsync-active = <0>;
+                     vsync-active = <0>;
+                     de-active = <1>;
+                     pixelclk-active = <0>;
+             };
+
+         };
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&aliases {
+	serial1 = &uart0;
+};
+
+&fpga_axi {
+	axi_i2s_0: axi-i2s@77600000 {
+		compatible = "adi,axi-i2s-1.00.a";
+		reg = <0x77600000 0x1000>;
+		dmas = <&dmac_s 0 &dmac_s 1>;
+		dma-names = "tx", "rx";
+		clocks = <&clkc 15>, <&audio_clock>;
+		clock-names = "axi", "ref";
+
+		#sound-dai-cells = <0>;
+	};
+
+		axi_timer_0: timer@42800000 {
+			clock-frequency = <100000000>;
+			#pwm-cells = <2>;
+			clocks = <&clkc 15>;
+			compatible = "xlnx,pwm-xlnx";
+			reg = <0x42800000 0x10000>;
+			xlnx,count-width = <0x20>;
+			xlnx,gen0-assert = <0x1>;
+			xlnx,gen1-assert = <0x1>;
+			xlnx,one-timer-only = <0x0>;
+			xlnx,trig0-assert = <0x1>;
+			xlnx,trig1-assert = <0x1>;
+		};
+
+		v_tc_0: v_tc@43d00000 {
+			clocks = <&clkc 15>;
+			compatible = "xlnx,v-tc-5.01.a";
+			reg = <0x43d00000 0x10000>;
+		};
+
+		axi_dynclk_0: axi_dynclk@43c00000 {
+			clocks = <&clkc 15>;
+			#clock-cells = <0>;
+			reg = <0x43c00000 0x10000>;
+			compatible = "digilent,axi-dynclk";
+			xlnx,s00-axi-addr-width = <0x5>;
+			xlnx,s00-axi-data-width = <0x20>;
+		};
+
+		axi_vdma_0: dma@43000000 {
+			#dma-cells = <1>;
+			clock-names = "s_axi_lite_aclk", "m_axi_mm2s_aclk", "m_axis_mm2s_aclk";
+			clocks = <&clkc 15>, <&clkc 15>, <&clkc 15>;
+			compatible = "xlnx,axi-vdma-6.3", "xlnx,axi-vdma-1.00.a";
+			interrupt-names = "mm2s_introut";
+			interrupt-parent = <&intc>;
+			interrupts = <0 59 4>;
+			reg = <0x43000000 0x1000>;
+			xlnx,addrwidth = <0x20>;
+			xlnx,flush-fsync = <0x1>;
+			xlnx,num-fstores = <0x1>;
+			dma-channel@43000000 {
+				compatible = "xlnx,axi-vdma-mm2s-channel";
+				interrupts = <0 59 4>;
+				xlnx,datawidth = <0x18>;
+				xlnx,device-id = <0x0>;
+				xlnx,genlock-mode ;
+			};
+		};
+
+};
+
+/ {
+		backlight {
+	      		status = "okay";
+	     		compatible = "pwm-backlight";
+	        	pwms = <&axi_timer_0 0 1000000>;
+	        	brightness-levels = <0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100
+                                            105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185
+                                            190 195 200 205 210 215 220 225 230 235 240 245 250>;
+	      		default-brightness-level = <25>;       
+	 	};
+
+    		xlnx_vdma_lcd {
+        		compatible = "xilinx,vdmafb";
+        		status = "okay";
+
+		        xlnx,vtc = <&v_tc_0>;
+		        clocks = <&axi_dynclk_0>;
+		        clock-names = "lcd_pclk";
+
+			dmas = <&axi_vdma_0 0x0>;
+			dma-names = "dma";	
+	
+		        is-hdmi = <0x0>;
+
+		       	rst-gpios = <&gpio0 66 GPIO_ACTIVE_LOW>;
+        
+		        spi_cs = <&gpio0 63 GPIO_ACTIVE_LOW>;
+		        spi_scl = <&gpio0 64 GPIO_ACTIVE_LOW>;
+		        spi_sdi = <&gpio0 65 GPIO_ACTIVE_LOW>;
+		       	spi_sdo = <&gpio0 62 GPIO_ACTIVE_LOW>;
+
+		        display-timings = <&timing_4x3_480x800
+		                   &timing_4x3_800x480
+		                   &timing_7_800x480>;
+		        xlnx,pixel-format = "rgb888";
+    		};
+};
+

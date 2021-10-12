@@ -57,3 +57,20 @@ config DRM_XILINX_SDI
 	depends on DRM_XILINX
 	help
 	  DRM driver for Xilinx SDI Tx Subsystem.
+
+config DRM_AX_LCD_ENCODER
+   	tristate "ALINX LCD DRM Encoder Driver"
+   	depends on DRM_XILINX
+   	help
+     	    DRM slave encoder for alinx heijin LCD.    
+
+config FB_XILINX_VDMA
+	tristate "Xilinx LCD framebuffer driver support"
+	depends on FB && XILINX_DMA
+	select FB_SYS_FILLRECT
+	select FB_SYS_COPYAREA
+	select FB_SYS_IMAGEBLIT
+	select FB_MODE_HELPERS
+	select VIDEOMODE_HELPERS
+	help
+	  LCD framebuffer driver based on vdma, vtc, dyclk IP core.

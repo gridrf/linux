@@ -62,6 +62,7 @@ obj-$(CONFIG_ARCH_VT8500)		+= clk-vt8500.o
 obj-$(CONFIG_COMMON_CLK_VC5)		+= clk-versaclock5.o
 obj-$(CONFIG_COMMON_CLK_WM831X)		+= clk-wm831x.o
 obj-$(CONFIG_COMMON_CLK_XGENE)		+= clk-xgene.o
+obj-$(CONFIG_COMMON_CLK_DGLNT_DYNCLK)	+= clk-dglnt-dynclk.o
 
 # please keep this section sorted lexicographically by directory path name
 obj-y					+= actions/
